@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '3.6';
+    const PANEL_VERSION = '4';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1169,7 +1169,9 @@ div[data-chat-message-id] a {
     .whoishere-window.pa-who-resizable .who-is-here { width: 100% !important; }
     .whoishere-window.pa-who-resizable .scroll-wrapper { max-height: none !important; }
     .whoishere-window.pa-who-resizing { user-select: none; }
-    .whoishere-window .player-list > * { min-width: 0; }
+    .whoishere-window .player-list { width: auto !important; max-width: 100% !important; box-sizing: border-box; }
+    .whoishere-window .player-list > * { min-width: 0; max-width: 100% !important; box-sizing: border-box !important; }
+    .whoishere-window .player-list > .pa-who-row { width: 100% !important; padding-right: 14px !important; overflow: hidden; }
     .whoishere-window .pa-who-nickwrap { display: flex !important; align-items: baseline; white-space: nowrap; }
     .whoishere-window .pa-who-nickwrap { width: 100%; }
     .whoishere-window .pa-who-nk { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
@@ -4673,7 +4675,7 @@ function observeChatLinks() {
             row.style.display = 'flex';
             row.style.alignItems = 'center';
             row.style.minWidth = '0';
-            row.style.paddingRight = '8px';
+            row.classList.add('pa-who-row');
             row.dataset.paRowFix = row.textContent;
         }
 
