@@ -43,7 +43,7 @@
         buildsCompact: false,
         buildsCache: {},              // heroId -> {list:[{id,name}], currentId}
         mmEnabled: false,
-        mmSize: 100,                  // % domyślnego rozmiaru
+        mmSize: 90,                   // % wysokości ekranu (30–100)
         mmOpacity: 100,
         mmHotkey: '',
         mmShowOthers: true,
@@ -1003,6 +1003,9 @@ div[data-chat-message-id] a {
     }
     .pa-mm-gear:hover { color: var(--pa-accent); border-color: var(--pa-accent); }
     .pa-mm-close:hover { color: var(--pa-danger); border-color: var(--pa-danger); }
+    .pa-mm-zoom { display: inline-flex; align-items: center; gap: 4px; }
+    .pa-mm-zoom [data-mm-zoom-val] { min-width: 30px; text-align: center; font: 600 10.5px var(--pa-font); color: var(--pa-muted); }
+    .pa-mm-zoom .pa-mm-gear { font-size: 14px; line-height: 19px; }
 
     html.pa-mm-replace .c-window.handheld-window {
       visibility: hidden !important;
@@ -1092,6 +1095,7 @@ div[data-chat-message-id] a {
     .whoishere-window.pa-who-resizable .who-is-here { width: 100% !important; }
     .whoishere-window.pa-who-resizable .scroll-wrapper { max-height: none !important; }
     .whoishere-window.pa-who-resizing { user-select: none; }
+    .whoishere-window.pa-who-resizable .player-list > * { min-width: 0; }
 
 `;
 
@@ -1136,7 +1140,7 @@ div[data-chat-message-id] a {
             desc: 'Nowa mapa podręczna zamiast tej z gry: cała lokacja z zaznaczonymi mobami, elitami, herosami, NPC, graczami (sojusznicy, wrogowie) i przejściami, prostokąt widoku, współrzędne pod kursorem i wyszukiwarka (nazwa albo „x,y”). Kliknięcie na mapie = idź tam. Otwiera się zamiast mapy podręcznej z gry.',
             settings: () => `
               <div class="pa-row">
-                <label class="pa-field"><span>Rozmiar (%)</span><input type="number" min="40" max="150" step="5" data-pa-opt-num="mmSize"></label>
+                <label class="pa-field"><span>Rozmiar (% ekranu, 30–100)</span><input type="number" min="30" max="100" step="5" data-pa-opt-num="mmSize"></label>
                 <label class="pa-field"><span>Krycie (%)</span><input type="number" min="30" max="100" step="5" data-pa-opt-num="mmOpacity"></label>
                 <label class="pa-field"><span>Własny klawisz (opcjonalnie)</span><input type="text" maxlength="1" placeholder="np. n" data-pa-mm-hotkey></label>
               </div>
@@ -4273,8 +4277,47 @@ function observeChatLinks() {
             refreshScroll(win);
         }
 
+        // przy wąskim oknie skracamy nick („…”), a poziom zostaje zawsze widoczny
+        const LVL_RE = /^\(?\s*\d+\s*[a-ząęółśżźćń]{0,3}\s*\)?$/i;
+        function fixRows(win) {
+            const list = win.querySelector('.player-list');
+            if (!list) return;
+            for (const el of list.querySelectorAll('*')) {
+                if (el.dataset.paLvl === '1' || el.children.length) continue;
+                const txt = (el.textContent || '').trim();
+                if (!LVL_RE.test(txt)) continue;
+                el.dataset.paLvl = '1';
+                el.style.flexShrink = '0';
+                el.style.whiteSpace = 'nowrap';
+                el.style.marginLeft = '4px';
+                // idziemy w górę do elementu, w którym obok jest nick
+                let node = el;
+                while (node.parentElement && node.parentElement !== list && node.parentElement.children.length < 2) node = node.parentElement;
+                const row = node.parentElement;
+                if (!row || row === list) continue;
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.minWidth = '0';
+                row.style.paddingRight = '10px';
+                node.style.flexShrink = '0';
+                for (const sib of row.children) {
+                    if (sib === node) continue;
+                    if ((sib.textContent || '').trim().length < 2) {
+                        sib.style.flexShrink = '0';
+                        continue;
+                    }
+                    sib.style.flex = '1 1 auto';
+                    sib.style.minWidth = '0';
+                    sib.style.overflow = 'hidden';
+                    sib.style.textOverflow = 'ellipsis';
+                    sib.style.whiteSpace = 'nowrap';
+                }
+            }
+        }
+
         function attach(win) {
             if (!win) return;
+            fixRows(win);
             if (win.querySelector(':scope > .pa-who-grip')) {
                 // okno istnieje – pilnujemy, by gra nie nadpisała rozmiaru
                 if (state.whoSize && win.style.width !== `${state.whoSize.w}px`) applySize(win, state.whoSize);
@@ -4339,7 +4382,7 @@ function observeChatLinks() {
             clearInterval(timer);
             if (on) {
                 attach(findWindow());
-                timer = setInterval(() => attach(findWindow()), 1000);
+                timer = setInterval(() => attach(findWindow()), 400);
             } else {
                 detach();
             }
@@ -4697,6 +4740,11 @@ function observeChatLinks() {
                 <span class="pa-mm-brand">Nowa mapa</span>
                 <span class="pa-mm-name" data-mm-name></span>
                 <label>Szukaj <input type="text" data-mm-search spellcheck="false" placeholder="Szukaj: nazwa lub x,y"></label>
+                <span class="pa-mm-zoom">
+                  <button type="button" class="pa-mm-gear" data-mm-zoom="-1" title="Zmniejsz mapę">−</button>
+                  <span data-mm-zoom-val></span>
+                  <button type="button" class="pa-mm-gear" data-mm-zoom="1" title="Powiększ mapę">+</button>
+                </span>
                 <button type="button" class="pa-mm-gear" data-mm-gear title="Ustawienia">⚙</button>
                 <button type="button" class="pa-mm-gear pa-mm-close" data-mm-close title="Zamknij (Esc)">✕</button>
               </div>
@@ -4727,6 +4775,13 @@ function observeChatLinks() {
             });
             el.querySelector('[data-mm-gear]').addEventListener('click', () => setMenuOpen(true, 'minimap'));
             el.querySelector('[data-mm-close]').addEventListener('click', () => close(true));
+            el.querySelectorAll('[data-mm-zoom]').forEach((btn) => btn.addEventListener('click', () => {
+                const step = Number(btn.getAttribute('data-mm-zoom')) * 10;
+                state.mmSize = Math.max(30, Math.min(100, (Number(state.mmSize) || 90) + step));
+                saveSettings();
+                buildMap();
+                syncUi();
+            }));
             el.querySelector('[data-mm-side]').addEventListener('click', (e) => {
                 const btn = e.target.closest('[data-mm-approach]');
                 const row = e.target.closest('[data-mm-row]');
@@ -4882,21 +4937,15 @@ function observeChatLinks() {
             msg.style.display = 'none';
             mapW = town.w;
             mapH = town.h;
-            const cr = getCanvasRect();
-            const maxBox = Math.min(700, cr.width - 40, cr.height - 70) * (state.mmSize / 100);
-            const box = Math.max(120, maxBox);
-            let w;
-            let h;
-            if (mapW >= mapH) {
-                w = box;
-                h = Math.max(1, Math.floor(mapH / mapW * box));
-            } else {
-                h = box;
-                w = Math.max(1, Math.floor(mapW / mapH * box));
-            }
+            // rozmiar zależy tylko od okna przeglądarki i ustawienia (100% = cała wysokość ekranu)
+            const pct = Math.max(30, Math.min(100, Number(state.mmSize) || 90)) / 100;
+            const availW = Math.max(200, window.innerWidth - 300);
+            const availH = Math.max(150, window.innerHeight - 100);
+            const fit = Math.min(availW / mapW, availH / mapH) * pct;
+            let w = Math.max(120, Math.floor(mapW * fit));
             scale = w / mapW;
             w = Math.round(scale * mapW);
-            h = Math.round(scale * mapH);
+            const h = Math.round(scale * mapH);
             map.style.width = `${w}px`;
             map.style.height = `${h}px`;
 
@@ -4915,6 +4964,7 @@ function observeChatLinks() {
                 map.style.backgroundPosition = '0 0';
             }
             clearObjects();
+            el.querySelector('[data-mm-zoom-val]').textContent = `${Math.round(pct * 100)}%`;
             el.querySelector('[data-mm-name]').textContent = town.name || '';
             el.style.opacity = String(state.mmOpacity / 100);
             sideSig = '';
@@ -4980,7 +5030,8 @@ function observeChatLinks() {
                 <span class="pa-mm-row-dot" style="background:${COLORS[o.kind]}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(o.nick)}</b><small>${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})</small></span>
                 <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}">Podejdź</button>
-              </div>`).join('');            position();
+              </div>`).join('');
+            position();
         }
 
         const objEls = new Map();
