@@ -847,29 +847,31 @@ div[data-chat-message-id] a {
       position: absolute;
       display: none;
       z-index: 13;
-      padding: 6px;
-      border: 1px solid var(--pa-border-strong);
-      border-radius: 14px;
-      background: var(--pa-bg);
-      backdrop-filter: var(--pa-blur);
-      box-shadow: var(--pa-shadow), inset 0 1px 0 rgba(255,255,255,.06);
       font-family: var(--pa-font);
       color: var(--pa-text);
       user-select: none;
     }
     .pa-mm.pa-mm-fixed { position: fixed; z-index: 2147483400; }
-    .pa-mm.pa-visible { display: flex; gap: 8px; align-items: flex-start; }
-    .pa-mm-col { flex: 0 0 auto; }
+    .pa-mm.pa-visible { display: flex; gap: 10px; align-items: flex-start; animation: pa-pop .16s ease-out; }
+    .pa-mm-col, .pa-mm-side {
+      border: 1px solid var(--pa-border-strong);
+      border-radius: 14px;
+      background: var(--pa-bg);
+      backdrop-filter: var(--pa-blur);
+      box-shadow: var(--pa-shadow), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .pa-mm-col { flex: 0 0 auto; padding: 6px; }
     .pa-mm-side {
       display: none;
       flex-direction: column;
-      gap: 5px;
-      width: 210px;
+      gap: 6px;
+      width: 230px;
+      padding: 10px;
       overflow-y: auto;
       scrollbar-width: thin;
     }
     .pa-mm-side.pa-visible { display: flex; }
-    .pa-mm-side-title { font: 700 10.5px var(--pa-font); letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); padding: 2px 2px 0; }
+    .pa-mm-side-title { font: 700 10.5px var(--pa-font); letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); padding: 0 2px 6px; border-bottom: 1px solid var(--pa-border); margin-bottom: 2px; }
     .pa-mm-row {
       display: flex;
       align-items: center;
@@ -896,7 +898,6 @@ div[data-chat-message-id] a {
       cursor: pointer;
     }
     .pa-mm-go:hover { background: var(--pa-accent); color: #111; }
-    .pa-mm.pa-visible { animation: pa-pop .16s ease-out; }
     .pa-mm-map {
       position: relative;
       overflow: hidden;
@@ -4515,7 +4516,38 @@ function observeChatLinks() {
         let hoverTile = null;
 
         // ---------- zbieranie danych ----------
+        function engineMapFile() {
+            try {
+                const d = PAGE.Engine?.map?.d;
+                return d?.file || d?.img || '';
+            } catch (_) {
+                return '';
+            }
+        }
+
+        // zmiana mapy wykryta po silniku (gdy pakiet nie przyszedł / był inny)
+        let lastEngineMapId = null;
+        function checkEngineMap() {
+            let d;
+            try { d = PAGE.Engine?.map?.d; } catch (_) { return; }
+            if (!d || d.id === undefined) return;
+            const id = String(d.id);
+            if (lastEngineMapId === null) {
+                lastEngineMapId = id;
+                return;
+            }
+            if (id === lastEngineMapId) return;
+            lastEngineMapId = id;
+            if (town && String(town.id) === id) return;
+            resetTown({ id: d.id, name: d.name, file: d.file || d.img || '', x: d.x || PAGE.Engine.map.size?.x, y: d.y || PAGE.Engine.map.size?.y, visibility: d.visibility, backgroundOffset: d.backgroundOffset });
+            setTimeout(() => {
+                bootstrapFromEngine();
+                queueRender();
+            }, 400);
+        }
+
         function resetTown(t) {
+            if (t.id !== undefined) lastEngineMapId = String(t.id);
             town = {
                 id: t.id,
                 name: t.name || '',
@@ -4564,8 +4596,13 @@ function observeChatLinks() {
         net.onAny((data) => {
             let changed = false;
             if (data.town && typeof data.town === 'object') {
-                if (data.town.file !== undefined) {
-                    resetTown(data.town);
+                const t = data.town;
+                const newMap = t.file !== undefined ||
+                    (t.id !== undefined && town && String(t.id) !== String(town.id)) ||
+                    (t.name !== undefined && town && t.name !== town.name) ||
+                    (t.x !== undefined && t.y !== undefined && (!town || Number(t.x) !== town.w || Number(t.y) !== town.h));
+                if (newMap) {
+                    resetTown(Object.assign({}, t, { file: t.file ?? engineMapFile() }));
                 } else if (town && data.town.visibility !== undefined) {
                     town.visibility = Number(data.town.visibility) || 0;
                 }
@@ -5075,7 +5112,7 @@ function observeChatLinks() {
             el.querySelector('[data-mm-zoom-val]').textContent = `${Math.round(pct * 100)}%`;
             el.querySelector('[data-mm-name]').textContent = town.name || '';
             el.style.opacity = String(state.mmOpacity / 100);
-            sideSig = '';
+            sideSig = null;
             renderObjects();
             position();
             tick();
@@ -5094,7 +5131,7 @@ function observeChatLinks() {
 
         const IMPORTANT = { titan: 1, collosus: 2, herosEvent: 3, heros: 4, elite3: 5, elite2: 6 };
         const PULSE = { titan: 1, collosus: 1, heros: 1, herosEvent: 1, elite3: 1 };
-        let sideSig = '';
+        let sideSig = null;
 
         function approach(x, y) {
             const h = heroPos();
@@ -5199,6 +5236,7 @@ function observeChatLinks() {
         }
 
         function tick() {
+            checkEngineMap();
             if (!el || !isOpen || !scale) return;
             const h = heroPos();
             const hero = el.querySelector('[data-mm-hero]');
@@ -5261,6 +5299,7 @@ function observeChatLinks() {
         let suppressUntil = 0;
 
         function watchGame() {
+            checkEngineMap();
             const g = findGameMiniMap();
             const shown = isShown(g);
             if (shown && g !== hiddenGameWin && Date.now() < suppressUntil) {
