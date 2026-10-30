@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '3.1';
+    const PANEL_VERSION = '3.2';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -40,7 +40,8 @@
         buildsEnabled: false,
         buildsPosition: null,
         buildsBox: null,
-        buildsProf: {},               // id zestawu -> profesja (w/p/b/m/t/h)
+        buildsHeroCfg: {},            // heroId -> { prof: {idZestawu: 'mt'}, ai }
+        buildsProf: {},               // (stare, wspólne – przenoszone na postać)
         buildsAI: false,
         buildsAIRange: 12,
         buildsAIEnemiesOnly: false,              // {w, h} – rozmiar okienka zestawów
@@ -76,7 +77,7 @@
         'hugeBoxShadow', 'hugeTextColor', 'hugeAutoCloseSeconds',
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
-        'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
+        'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns',
         'themeAccent', 'themeGlass',
     ];
@@ -99,6 +100,7 @@
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
             if (!state.buildsProf || typeof state.buildsProf !== 'object') state.buildsProf = {};
+            if (!state.buildsHeroCfg || typeof state.buildsHeroCfg !== 'object') state.buildsHeroCfg = {};
 
             if (saved.collapsedGroups) {
                 collapsedGroups.t = Boolean(saved.collapsedGroups.t);
@@ -855,8 +857,30 @@ div[data-chat-message-id] a {
     }
     .pa-builds-compact .pa-build .pa-build-prof { display: none; }
     .pa-builds-win .pa-win-head .pa-b-ai { width: auto; padding: 0 4px; font-weight: 700; font-size: 8.5px; }
-    .pa-bprof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; margin-bottom: 6px; }
-    .pa-bprof-grid .pa-field { margin: 0; }
+    .pa-bprof-grid { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+    .pa-bprof-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 6px 5px 9px;
+      border: 1px solid var(--pa-border);
+      border-radius: 8px;
+      background: rgba(0,0,0,.28);
+    }
+    .pa-bprof-name { flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600; color: var(--pa-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pa-bprof-chips { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; }
+    .pa-chip {
+      min-width: 34px;
+      padding: 3px 6px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 6px;
+      background: #1a1c25;
+      color: #c9cdd8;
+      font: 600 10.5px var(--pa-font);
+      cursor: pointer;
+    }
+    .pa-chip:hover { border-color: var(--pa-border-strong); color: #fff; }
+    .pa-chip.pa-on { background: color-mix(in srgb, var(--pa-accent) 75%, #000); border-color: var(--pa-accent); color: #fff; }
     .pa-builds-status.pa-warn { color: #f5c451; }
     .pa-builds-empty { padding: 4px 2px; color: var(--pa-muted); font-size: 10.5px; line-height: 1.4; max-width: 200px; }
 
@@ -1000,21 +1024,26 @@ div[data-chat-message-id] a {
       pointer-events: none;
     }
     .pa-mm-msg { display: none; position: absolute; inset: 0; padding: 30px 16px; text-align: center; color: var(--pa-muted); font-size: 12px; }
+    .pa-mm-col { box-sizing: border-box; }
     .pa-mm-bar {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 6px 8px;
       padding: 6px 2px 0 4px;
       font: 11px var(--pa-font);
       white-space: nowrap;
-      overflow: hidden;
+      min-width: 0;
     }
+    .pa-mm-bar label { flex: 1 1 110px; min-width: 0; }
+    .pa-mm-tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
     .pa-mm-brand { font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
     .pa-mm-sep { display: none; }
-    .pa-mm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--pa-muted); }
+    .pa-mm-name { flex: 1 1 60px; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--pa-muted); }
     .pa-mm-bar label { display: flex; align-items: center; gap: 4px; color: transparent; font-size: 0; }
     .pa-mm-bar input {
-      width: 150px;
+      width: 100%;
+      min-width: 0;
       height: 22px;
       padding: 0 9px;
       border: 1px solid var(--pa-border);
@@ -1197,10 +1226,11 @@ div[data-chat-message-id] a {
             isNew: true,
             desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy. Tryb AI sam zakłada zestaw przypisany do profesji najbliższego wroga. Okienko można przesuwać i rozciągać za prawy dolny róg.',
             settings: () => `
-              <div class="pa-sub">Profesje zestawów (dla AI)</div>
+              <p class="pa-hint" data-pa-b-hero style="color:var(--pa-accent)"></p>
+              <div class="pa-sub">Profesje zestawów (dla AI) – można zaznaczyć kilka</div>
               <div class="pa-bprof-grid" data-pa-b-profs></div>
               <div class="pa-sub">AI zestawów</div>
-              <label class="pa-check"><input type="checkbox" data-pa-opt="buildsAI"> Włącz AI – zakładaj zestaw pod profesję najbliższego wroga</label>
+              <label class="pa-check"><input type="checkbox" data-pa-b-aiopt> Włącz AI – zakładaj zestaw pod profesję najbliższego wroga</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="buildsAIEnemiesOnly"> Tylko gracze oznaczeni jako wrogowie (bez neutralnych)</label>
               <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania (kratki)</span><input type="number" min="3" max="80" step="1" data-pa-opt-num="buildsAIRange"></label></div>
               <p class="pa-hint">Klan, sojusznicy i znajomi są pomijani. W walce zmiana czeka do jej końca. AI możesz też przełączać przyciskiem „AI” w okienku zestawów.</p>
@@ -2078,6 +2108,14 @@ div[data-chat-message-id] a {
                 return;
             }
 
+            const chip = event.target.closest('[data-pa-bprof-id]');
+            if (chip) {
+                event.preventDefault();
+                builds.toggleProf(chip.getAttribute('data-pa-bprof-id'), chip.getAttribute('data-pa-bprof-p'));
+                builds.renderSettings(modal, true);
+                return;
+            }
+
             const action = event.target.closest('[data-pa-action]');
             if (action) {
                 event.preventDefault();
@@ -2130,6 +2168,11 @@ div[data-chat-message-id] a {
                 saveSettings();
                 if (key.startsWith('builds')) builds.render();
                 if (key.startsWith('mm')) miniMap.refresh();
+                return;
+            }
+
+            if (input.matches('[data-pa-b-aiopt]')) {
+                builds.setAI(input.checked);
                 return;
             }
 
@@ -4120,12 +4163,13 @@ function observeChatLinks() {
 
             win.querySelector('[data-pa-b-settings]').addEventListener('click', () => setMenuOpen(true, 'builds'));
             win.querySelector('[data-pa-b-ai]').addEventListener('click', () => {
-                state.buildsAI = !state.buildsAI;
-                if (state.buildsAI && !Object.values(state.buildsProf || {}).some(Boolean)) {
+                const cfg = heroCfg();
+                cfg.ai = !cfg.ai;
+                if (cfg.ai && !Object.values(cfg.prof).some(Boolean)) {
                     showToast('AI włączone – przypisz profesje do zestawów w ustawieniach (⚙)');
                     setMenuOpen(true, 'builds');
                 } else {
-                    showToast(state.buildsAI ? 'AI zestawów włączone' : 'AI zestawów wyłączone');
+                    showToast(cfg.ai ? 'AI zestawów włączone (dla tej postaci)' : 'AI zestawów wyłączone');
                 }
                 aiInfo = '';
                 saveSettings();
@@ -4193,9 +4237,9 @@ function observeChatLinks() {
                     if (id === current) cls.push('pa-current');
                     if (id === pendingId) cls.push('pa-pending');
                     const name = escapeHtmlPa(friendlyName(id));
-                    const prof = (state.buildsProf || {})[id];
-                    const profTag = prof ? `<span class="pa-build-prof" title="${PROFS[prof]}">${prof.toUpperCase()}</span>` : '';
-                    return `<button type="button" class="${cls.join(' ')}" data-pa-build="${id}" title="${name}${id === current ? ' (założony)' : ''}${prof ? ` · pod: ${PROFS[prof]}` : ''}\nLPM – załóż · PPM – zmień nazwę">
+                    const profs = profsOf(id);
+                    const profTag = profs.length ? `<span class="pa-build-prof">${profs.map((k) => k.toUpperCase()).join('')}</span>` : '';
+                    return `<button type="button" class="${cls.join(' ')}" data-pa-build="${id}" title="${name}${id === current ? ' (założony)' : ''}${profs.length ? ` · pod: ${profs.map((k) => PROFS[k]).join(', ')}` : ''}\nLPM – załóż · PPM – zmień nazwę">
                       <span class="pa-build-no">${id}</span><span class="pa-build-name">${name}</span>${profTag}</button>`;
                 }).join('');
             }
@@ -4255,7 +4299,7 @@ function observeChatLinks() {
 
         function renderStatus() {
             if (!win) return;
-            win.querySelector('[data-pa-b-ai]')?.classList.toggle('pa-on', Boolean(state.buildsAI));
+            win.querySelector('[data-pa-b-ai]')?.classList.toggle('pa-on', aiOn());
             const status = win.querySelector('[data-pa-b-status]');
             let text = '';
             if (pendingId !== null) {
@@ -4267,7 +4311,7 @@ function observeChatLinks() {
                 text = isFighting() ? '⚔ Trwa walka – kliknięcie zakolejkuje zmianę' : '';
                 status.classList.toggle('pa-warn', isFighting());
             }
-            if (state.buildsAI && aiInfo) text = text ? `${text}\n${aiInfo}` : aiInfo;
+            if (aiOn() && aiInfo) text = text ? `${text}\n${aiInfo}` : aiInfo;
             if (status.textContent !== text) {
                 status.textContent = text;
                 layout();
@@ -4280,14 +4324,59 @@ function observeChatLinks() {
         let aiInfo = '';
         let aiLastSwitch = 0;
 
+        const PROF_SHORT = { w: 'Woj', p: 'Pal', b: 'Tan', m: 'Mag', t: 'Tro', h: 'Łow' };
+
+        // ustawienia AI / profesji są osobne dla każdej postaci
+        function heroCfg() {
+            const hid = net.heroId();
+            if (!state.buildsHeroCfg || typeof state.buildsHeroCfg !== 'object') state.buildsHeroCfg = {};
+            let cfg = state.buildsHeroCfg[hid];
+            if (!cfg) {
+                cfg = { prof: {}, ai: false };
+                // jednorazowo przenosimy stare (wspólne) ustawienia na pierwszą postać
+                if (hid !== 'default' && state.buildsProf && Object.keys(state.buildsProf).length) {
+                    cfg.prof = state.buildsProf;
+                    cfg.ai = Boolean(state.buildsAI);
+                    state.buildsProf = {};
+                    state.buildsAI = false;
+                }
+                state.buildsHeroCfg[hid] = cfg;
+            }
+            if (!cfg.prof) cfg.prof = {};
+            return cfg;
+        }
+
+        function aiOn() {
+            return Boolean(heroCfg().ai);
+        }
+
+        // profesje zestawu zapisane jako ciąg liter, np. "mt" = mag + tropiciel
+        function profsOf(id) {
+            return String(heroCfg().prof[id] || '').split('').filter((k) => PROFS[k]);
+        }
+
+        function toggleProf(id, k) {
+            const map = heroCfg().prof;
+            const cur = profsOf(id);
+            const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
+            const ordered = Object.keys(PROFS).filter((x) => next.includes(x)).join('');
+            if (ordered) map[id] = ordered;
+            else delete map[id];
+            saveSettings();
+            render();
+        }
+
         function buildForProf(prof) {
-            const map = state.buildsProf || {};
-            const ids = Object.keys(map).filter((id) => map[id] === prof).map(Number).sort((a, b) => a - b);
-            return ids.length ? ids[0] : null;
+            const map = heroCfg().prof;
+            const ids = Object.keys(map).filter((id) => profsOf(id).includes(prof)).map(Number).sort((a, b) => a - b);
+            if (!ids.length) return null;
+            // jeśli obecny zestaw pasuje – zostajemy przy nim
+            if (ids.includes(currentId)) return currentId;
+            return ids[0];
         }
 
         function aiStep() {
-            if (!win || !state.buildsAI) {
+            if (!win || !aiOn()) {
                 if (aiInfo) {
                     aiInfo = '';
                     renderStatus();
@@ -4320,23 +4409,40 @@ function observeChatLinks() {
             choose(id);
         }
 
-        function renderSettings(modal) {
+        function setAI(on) {
+            heroCfg().ai = Boolean(on);
+            aiInfo = '';
+            saveSettings();
+            render();
+        }
+
+        function renderSettings(modal, force) {
+            const aiBox = modal.querySelector('[data-pa-b-aiopt]');
+            if (aiBox) aiBox.checked = aiOn();
+            const who = modal.querySelector('[data-pa-b-hero]');
+            if (who) {
+                let nick = '';
+                try { nick = PAGE.Engine?.hero?.d?.nick || PAGE.hero?.nick || ''; } catch (_) {}
+                who.textContent = nick ? `Ustawienia poniżej dotyczą postaci: ${nick}` : 'Ustawienia poniżej dotyczą aktualnej postaci';
+            }
             const box = modal.querySelector('[data-pa-b-profs]');
-            if (!box || box.contains(document.activeElement)) return;
+            if (!box || (!force && box.contains(document.activeElement))) return;
             const live = Object.keys(list).map(Number);
             const ids = (live.length ? live : cachedList().map((b) => Number(b.id))).sort((a, b) => a - b);
             if (!ids.length) {
                 box.innerHTML = '<p class="pa-hint">Brak listy zestawów – odśwież grę (F5), gdy dodatek jest włączony.</p>';
                 return;
             }
-            const map = state.buildsProf || {};
-            box.innerHTML = ids.map((id) => `
-              <label class="pa-field pa-bprof-row"><span>${id}. ${escapeHtmlPa(friendlyName(id))}</span>
-                <select data-pa-bprof="${id}">
-                  <option value="">— brak —</option>
-                  ${Object.entries(PROFS).map(([k, v]) => `<option value="${k}"${map[id] === k ? ' selected' : ''}>${v}</option>`).join('')}
-                </select>
-              </label>`).join('');
+            box.innerHTML = ids.map((id) => {
+                const profs = profsOf(id);
+                return `
+              <div class="pa-bprof-row">
+                <span class="pa-bprof-name">${id}. ${escapeHtmlPa(friendlyName(id))}</span>
+                <span class="pa-bprof-chips">
+                  ${Object.entries(PROFS).map(([k, v]) => `<button type="button" class="pa-chip${profs.includes(k) ? ' pa-on' : ''}" data-pa-bprof-id="${id}" data-pa-bprof-p="${k}" title="${v}">${PROF_SHORT[k]}</button>`).join('')}
+                </span>
+              </div>`;
+            }).join('');
         }
 
         function setEnabled(on) {
@@ -4368,7 +4474,7 @@ function observeChatLinks() {
             if (state.buildsEnabled) setEnabled(true);
         }
 
-        return { init, setEnabled, render, resetPosition, choose, renderSettings };
+        return { init, setEnabled, render, resetPosition, choose, renderSettings, toggleProf, setAI };
     })();
 
     // =================================================================
@@ -4987,6 +5093,7 @@ function observeChatLinks() {
                 <span class="pa-mm-brand">Nowa mapa</span>
                 <span class="pa-mm-name" data-mm-name></span>
                 <label>Szukaj <input type="text" data-mm-search spellcheck="false" placeholder="Szukaj: nazwa lub x,y"></label>
+                <span class="pa-mm-tools">
                 <span class="pa-mm-zoom">
                   <button type="button" class="pa-mm-gear" data-mm-zoom="-1" title="Zmniejsz mapę">−</button>
                   <span data-mm-zoom-val></span>
@@ -4994,6 +5101,7 @@ function observeChatLinks() {
                 </span>
                 <button type="button" class="pa-mm-gear" data-mm-gear title="Ustawienia">⚙</button>
                 <button type="button" class="pa-mm-gear pa-mm-close" data-mm-close title="Zamknij (Esc)">✕</button>
+                </span>
               </div>
               </div>
               <div class="pa-mm-side" data-mm-side></div>`;
@@ -5175,31 +5283,6 @@ function observeChatLinks() {
             return null;
         }
 
-        // rozmiar widoku gry w kratkach (wewnętrzny rozmiar płótna gry)
-        function viewTiles() {
-            // największy z: wewnętrzny rozmiar płótna gry, jego rozmiar na ekranie, obszar gry
-            let w = 0;
-            let h = 0;
-            for (const c of document.querySelectorAll('#GAME_CANVAS, .game-window-positioner canvas, canvas')) {
-                if (c.closest('.handheld-window, .c-window, .pa-mm')) continue;
-                const r = c.getBoundingClientRect();
-                if (r.width < 200 || r.height < 150) continue;
-                w = Math.max(w, c.width, r.width);
-                h = Math.max(h, c.height, r.height);
-            }
-            const stage = getStage();
-            if (stage) {
-                const r = stage.getBoundingClientRect();
-                w = Math.max(w, r.width);
-                h = Math.max(h, r.height);
-            }
-            if (!w || !h) {
-                w = window.innerWidth;
-                h = window.innerHeight;
-            }
-            return { w: w / 32, h: h / 32 };
-        }
-
         function mapImageUrl() {
             try {
                 const img = PAGE.Engine?.map?.img;
@@ -5234,10 +5317,18 @@ function observeChatLinks() {
             const availH = Math.max(150, window.innerHeight - 100);
             const fit = Math.min(availW / mapW, availH / mapH) * pct;
             let w = Math.max(120, Math.floor(mapW * fit));
+            // wąska (wysoka) mapa – powiększamy ją do szerokości paska, jeśli zmieści się na ekranie
+            const MIN_W = 430;
+            if (w < MIN_W) {
+                const grow = Math.min(MIN_W / mapW, availH / mapH, availW / mapW);
+                w = Math.max(w, Math.floor(mapW * grow));
+            }
             scale = w / mapW;
             w = Math.round(scale * mapW);
             const h = Math.round(scale * mapH);
             map.style.width = `${w}px`;
+            const col = el.querySelector('.pa-mm-col');
+            if (col) col.style.width = `${w + 14}px`;   // okno = szerokość mapy + ramka
             map.style.height = `${h}px`;
 
             const url = mapImageUrl();
@@ -5501,27 +5592,19 @@ function observeChatLinks() {
             hero.style.height = `${s + 1}px`;
             hero.style.transform = `translate(${(h.rx * scale - off).toFixed(2)}px, ${(h.ry * scale - off).toFixed(2)}px)`;
 
-            // prostokąt widoku (to, co widać na ekranie gry)
-            const vt = viewTiles();
-            const vw = Math.min(mapW, vt.w);
-            const vh = Math.min(mapH, vt.h);
-            let vx;
-            let vy;
-            const camera = PAGE.Engine?.map?.offset;
-            if (Array.isArray(camera) && Number.isFinite(camera[0]) && Number.isFinite(camera[1])) {
-                // kamera gry: lewy górny róg widoku w pikselach mapy
-                vx = camera[0] / 32;
-                vy = camera[1] / 32;
-            } else {
-                vx = h.rx + 0.5 - vw / 2;
-                vy = h.ry + 0.5 - vh / 2;
+            // zasięg widzenia postaci (jak w miniMap+): kwadrat (2v+1) kratek wyśrodkowany na postaci
+            let v = Number(town?.visibility) || 0;
+            if (!v) {
+                try { v = Number(PAGE.Engine?.map?.d?.visibility) || 0; } catch (_) {}
             }
-            vx = Math.max(0, Math.min(mapW - vw, vx));
-            vy = Math.max(0, Math.min(mapH - vh, vy));
+            if (!v) v = 16;
+            const size = (2 * v + 1) * scale;
+            const cx = (h.rx + 0.5) * scale;
+            const cy = (h.ry + 0.5) * scale;
             view.style.display = 'block';
-            view.style.transform = `translate(${(vx * scale).toFixed(2)}px, ${(vy * scale).toFixed(2)}px)`;
-            view.style.width = `${vw * scale}px`;
-            view.style.height = `${vh * scale}px`;
+            view.style.width = `${size}px`;
+            view.style.height = `${size}px`;
+            view.style.transform = `translate(${(cx - size / 2).toFixed(2)}px, ${(cy - size / 2).toFixed(2)}px)`;
             if (!hoverTile) updateCoords();
         }
 
