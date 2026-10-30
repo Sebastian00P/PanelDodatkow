@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.5';
+    const PANEL_VERSION = '4.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1012,6 +1012,14 @@ div[data-chat-message-id] a {
     @keyframes pa-mm-ring { 0% { transform: scale(1); opacity: .95; } 100% { transform: scale(3.4); opacity: 0; } }
     .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid #c6ba35; box-shadow: none; }
     .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
+    .pa-mm-obj.pa-mm-resp.pa-mm-near, .pa-mm-obj.pa-mm-respEvent.pa-mm-near {
+      border-width: 3px;
+      background: color-mix(in srgb, currentColor 45%, transparent) !important;
+      animation: pa-mm-resp-near 1s ease-in-out infinite;
+      z-index: 150 !important;
+    }
+    .pa-mm-obj.pa-mm-resp.pa-mm-near { border-color: #fff36b; }
+    @keyframes pa-mm-resp-near { 50% { box-shadow: 0 0 0 2px #fff, 0 0 14px 5px currentColor; } }
     .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
     @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.2); } }
@@ -5018,18 +5026,47 @@ function observeChatLinks() {
                 changed = true;
             }
             const hh = data.handheld_minimap;
-            if (hh && Array.isArray(hh.hero_localizations)) {
-                spawns = [];
-                for (const t of hh.hero_localizations) {
-                    const event = t.kind === 'Event';
-                    for (const pos of t.pos || []) {
-                        spawns.push({ x: pos[0], y: pos[1], nick: `Resp ${event ? 'eventowy ' : ''}${t.name}${t.lvl ? ` (${t.lvl} lvl)` : ''}`, kind: event ? 'respEvent' : 'resp' });
-                    }
-                }
+            if (hh && hh.hero_localizations) {
+                lastHeroLoc = hh.hero_localizations;
+                spawns = parseSpawns(hh.hero_localizations);
                 changed = true;
             }
             if (changed) queueRender();
         });
+
+        // respy herosów – gra podaje je w różnych postaciach (tablica/obiekt, [x,y] albo {x,y}),
+        // zwykłe herosy i eventowe bywają w innym formacie, więc czytamy wszystko, co wygląda na pozycję
+        let lastHeroLoc = null;
+        function parseSpawns(raw) {
+            const out = [];
+            const seen = new Set();
+            const entries = Array.isArray(raw) ? raw : Object.values(raw || {});
+            const toXY = (p) => {
+                if (Array.isArray(p) && p.length >= 2) return [Number(p[0]), Number(p[1])];
+                if (p && typeof p === 'object' && p.x !== undefined && p.y !== undefined) return [Number(p.x), Number(p.y)];
+                return null;
+            };
+            for (const t of entries) {
+                if (!t || typeof t !== 'object') continue;
+                const event = /event/i.test(String(t.kind ?? t.type ?? ''));
+                const name = t.name || t.nick || 'herosa';
+                const lvl = t.lvl ?? t.level;
+                let list = t.pos ?? t.positions ?? t.localizations ?? t.coords ?? t.spawns;
+                if (list && !Array.isArray(list)) list = Object.values(list);
+                if (!list) list = [t];
+                // pojedyncza para [x,y] zamiast listy par
+                if (list.length === 2 && list.every((v) => typeof v === 'number' || /^\d+$/.test(String(v)))) list = [list];
+                for (const p of list) {
+                    const xy = toXY(p);
+                    if (!xy || !Number.isFinite(xy[0]) || !Number.isFinite(xy[1])) continue;
+                    const key = `${xy[0]},${xy[1]}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    out.push({ x: xy[0], y: xy[1], nick: `Resp ${event ? 'eventowy ' : ''}${name}${lvl ? ` (${lvl} lvl)` : ''}`, kind: event ? 'respEvent' : 'resp' });
+                }
+            }
+            return out;
+        }
 
         // przejścia szerokie na 2+ kratki gra podaje osobno – łączymy w jedno
         function mergeGateways(list) {
@@ -5646,6 +5683,42 @@ function observeChatLinks() {
             if (chase && f && String(f.init) === '1' && !f.close) stopChase(`Walka z ${chase.nick}!`);
         });
 
+        function sidePlayerTitle(p) {
+            return `${p.nick}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg' : 'gracz'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})\nKliknij, aby zaznaczyć na mapie`;
+        }
+
+        // aktualizuje tylko odległości / współrzędne w istniejących wierszach
+        function updateSidePositions(side, list, players) {
+            const rows = side.querySelectorAll('.pa-mm-row');
+            if (rows.length !== list.length + players.length) {
+                sideSig = null;
+                return;
+            }
+            list.forEach((o, i) => {
+                const row = rows[i];
+                const pos = `${o.x},${o.y}`;
+                if (row.getAttribute('data-mm-row') === pos) return;
+                row.setAttribute('data-mm-row', pos);
+                const btn = row.querySelector('[data-mm-approach]');
+                if (btn) btn.setAttribute('data-mm-approach', pos);
+                const small = row.querySelector('.pa-mm-row-text small');
+                if (small) small.textContent = `${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})`;
+            });
+            players.forEach((p, i) => {
+                const row = rows[list.length + i];
+                const pos = `${p.x},${p.y}`;
+                const dist = String(Math.round(p.dist));
+                if (row.getAttribute('data-mm-row') === pos && row.dataset.mmDist === dist) return;
+                row.setAttribute('data-mm-row', pos);
+                row.dataset.mmDist = dist;
+                row.title = sidePlayerTitle(p);
+                const d = row.querySelector('[data-mm-dist]');
+                if (d) d.textContent = `${dist} kr.`;
+                const xy = row.querySelector('.pa-mm-xy');
+                if (xy) xy.textContent = ` · (${p.x},${p.y})`;
+            });
+        }
+
         function renderSide() {
             const side = el.querySelector('[data-mm-side]');
             const players = getPlayers().filter((p) => p.hostile)
@@ -5658,9 +5731,13 @@ function observeChatLinks() {
                 if (kind && IMPORTANT[kind]) list.push({ kind, nick: n.nick || '?', lvl: n.lvl, x: n.x, y: n.y, grp: n.grp });
             }
             list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
-            const sig = list.map((o) => `${o.kind}${o.nick}${o.x},${o.y}`).join('|') + '#' +
-                players.map((p) => `${p.id}:${p.x},${p.y}`).join('|') + '#' + (chase ? chase.id : '');
-            if (sig === sideSig) return;
+            // podpis bez pozycji – przy samym ruchu nie przebudowujemy listy (inaczej przycisk pod kursorem mruga)
+            const sig = list.map((o) => `${o.kind}${o.nick}${o.lvl}`).join('|') + '#' +
+                players.map((p) => `${p.id}:${p.nick}`).join('|') + '#' + (chase ? chase.id : '') + '#' + state.mmChaseAttack;
+            if (sig === sideSig) {
+                updateSidePositions(side, list, players);
+                return;
+            }
             sideSig = sig;
             side.classList.toggle('pa-visible', list.length > 0 || players.length > 0);
             const rowsCount = list.length + players.length;
@@ -5670,10 +5747,10 @@ function observeChatLinks() {
             const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p) => {
                 const on = chase && chase.id === p.id;
                 return `
-              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" title="${escapeHtmlPa(p.nick)}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg' : 'gracz'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})&#10;Kliknij, aby zaznaczyć na mapie">
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" title="${escapeHtmlPa(p.nick)}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg' : 'gracz'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})&#10;Kliknij, aby zaznaczyć na mapie">
                 <span class="pa-mm-row-dot" style="background:${COLORS[p.kind]}"></span>
-                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : 'gracz · '}</span>${Math.round(p.dist)} kr.<span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
-                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" title="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : (state.mmChaseAttack ? 'Atak' : 'Goń')}</button>
+                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : 'gracz · '}</span><span data-mm-dist>${Math.round(p.dist)} kr.</span><span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
+                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" title="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : 'Goń'}</button>
               </div>`;
             }).join('') : '';
             side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o) => `
@@ -5705,7 +5782,9 @@ function observeChatLinks() {
                     layer.appendChild(d);
                     fresh = true;
                 }
-                if (!d.className.startsWith(cls)) d.className = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '');
+                if (!d.className.startsWith(cls)) d.className = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '') + (d.classList.contains('pa-mm-near') ? ' pa-mm-near' : '');
+                d.dataset.x = o.x;
+                d.dataset.y = o.y;
                 const big = PULSE[o.kind] ? Math.round(s * 1.5) : s;
                 const w = o.spanX ? Math.max(s, o.spanX * scale) : big;
                 const hgt = o.spanY ? Math.max(s, o.spanY * scale) : big;
@@ -5744,6 +5823,16 @@ function observeChatLinks() {
             });
         }
 
+        // resp w zasięgu wykrywania (kwadrat widzenia postaci) – podświetlamy kółko
+        function highlightNearSpawns(hx, hy, v) {
+            for (const d of el.querySelectorAll('.pa-mm-resp, .pa-mm-respEvent')) {
+                const x = Number(d.dataset.x);
+                const y = Number(d.dataset.y);
+                const near = Math.abs(x - hx) <= v && Math.abs(y - hy) <= v;
+                if (d.classList.contains('pa-mm-near') !== near) d.classList.toggle('pa-mm-near', near);
+            }
+        }
+
         function tick() {
             checkEngineMap();
             if (!el || !isOpen || !scale) return;
@@ -5775,6 +5864,7 @@ function observeChatLinks() {
             view.style.width = `${size}px`;
             view.style.height = `${size}px`;
             view.style.transform = `translate(${(cx - size / 2).toFixed(2)}px, ${(cy - size / 2).toFixed(2)}px)`;
+            highlightNearSpawns(Math.round(h.rx), Math.round(h.ry), v);
             if (!hoverTile) updateCoords();
         }
 
@@ -5916,7 +6006,7 @@ function observeChatLinks() {
                         .map((w) => ({ cls: String(w.className), title: w.querySelector('.header-label .text')?.textContent?.trim() }));
                     const info = {
                         town, npcs: Object.keys(npcs).length, others: Object.keys(others).length, gws: gws.length,
-                        mapImage: mapImageUrl(), gameMiniMap: g ? String(g.className) : null, visibleWindows: wins,
+                        spawns: spawns.length, heroLocRaw: lastHeroLoc, mapImage: mapImageUrl(), gameMiniMap: g ? String(g.className) : null, visibleWindows: wins,
                     };
                     console.log('[darksad-addon] Nowa mapa', info);
                     return info;
