@@ -1,10 +1,4 @@
-// =====================================================================
-//  Dark-Sad - Panel dodatków (kod docelowy)
-//  Ten plik NIE jest instalowany w Tampermonkey bezpośrednio.
-//  Pobiera go loader (PanelDodatkow.loader.user.js) z GitHuba:
-//  https://raw.githubusercontent.com/Sebastian00P/PanelDodatkow/refs/heads/main/script.js
-//  Loader przekazuje: GM_xmlhttpRequest, unsafeWindow, GM_getValue, GM_setValue.
-// =====================================================================
+
 
 (function() {
     'use strict';
