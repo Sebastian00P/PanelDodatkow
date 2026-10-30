@@ -5627,8 +5627,9 @@ function observeChatLinks() {
         }
 
         function dotSize() {
-            // na małych mapach kratka jest duża – kropki nie rosną ponad 14 px
-            return Math.max(7, Math.min(14, Math.ceil(scale * 1.15)));
+            // kropka = jedna kratka mapy (na małych mapach kratka jest duża, więc kropka też);
+            // na dużych mapach minimum 7 px, żeby było ją widać
+            return Math.max(7, Math.round(scale));
         }
 
         const IMPORTANT = { titan: 1, collosus: 2, herosEvent: 3, heros: 4, elite3: 5, elite2: 6 };
