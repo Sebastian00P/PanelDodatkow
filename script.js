@@ -49,6 +49,7 @@
         mmShowOthers: true,
         mmShowMobs: true,
         mmShowNpcs: true,
+        mmShowResp: true,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
     };
@@ -72,7 +73,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowResp',
         'themeAccent', 'themeGlass',
     ];
 
@@ -90,6 +91,7 @@
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
+            state.mmShowResp = saved.mmShowResp !== false;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
 
@@ -840,112 +842,135 @@ div[data-chat-message-id] a {
     .pa-builds-status.pa-warn { color: #f5c451; }
     .pa-builds-empty { padding: 4px 2px; color: var(--pa-muted); font-size: 10.5px; line-height: 1.4; max-width: 200px; }
 
-    /* ---------- miniMap+ ---------- */
+    /* ---------- Nowa mapa ---------- */
     .pa-mm {
       position: absolute;
       display: none;
       z-index: 13;
-      border: 3px solid #000;
-      border-radius: 5px;
-      border-bottom-left-radius: 20px;
-      overflow: hidden;
-      background: #000;
-      box-shadow: 0 10px 40px rgba(0,0,0,.6);
-      font-family: Arial, sans-serif;
+      padding: 6px;
+      border: 1px solid var(--pa-border-strong);
+      border-radius: 14px;
+      background: var(--pa-bg);
+      backdrop-filter: var(--pa-blur);
+      box-shadow: var(--pa-shadow), inset 0 1px 0 rgba(255,255,255,.06);
+      font-family: var(--pa-font);
+      color: var(--pa-text);
       user-select: none;
     }
     .pa-mm.pa-mm-fixed { position: fixed; z-index: 380; }
-    .pa-mm.pa-visible { display: block; }
+    .pa-mm.pa-visible { display: block; animation: pa-pop .16s ease-out; }
     .pa-mm-map {
       position: relative;
       overflow: hidden;
-      background-color: #444;
+      border-radius: 9px;
+      background-color: #1b1d26;
       background-repeat: no-repeat;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.6);
       cursor: crosshair;
     }
     .pa-mm-objects { position: absolute; inset: 0; pointer-events: none; }
     .pa-mm-obj {
       position: absolute;
+      left: 0;
+      top: 0;
+      will-change: transform;
       border-radius: 50%;
-      box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.55);
       pointer-events: none;
     }
-    .pa-mm-obj.pa-mm-gw { border-radius: 2px; box-shadow: none; }
-    .pa-mm-obj.pa-mm-player { box-shadow: 0 0 0 1px rgba(0,0,0,.7); }
-    .pa-mm-obj.pa-mm-heros, .pa-mm-obj.pa-mm-titan, .pa-mm-obj.pa-mm-collosus { animation: pa-mm-flash 1s steps(2) infinite; }
+    .pa-mm-obj.pa-mm-anim { transition: transform .45s linear; }
+    .pa-mm-obj.pa-mm-gw { border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+    .pa-mm-obj.pa-mm-player { box-shadow: 0 0 0 1px rgba(0,0,0,.8); }
+    .pa-mm-obj.pa-mm-elite3 { box-shadow: 0 0 0 1px #000, 0 0 6px #ff9f1a; }
+    .pa-mm-obj.pa-mm-heros, .pa-mm-obj.pa-mm-titan, .pa-mm-obj.pa-mm-collosus { animation: pa-mm-glow 1s ease-in-out infinite; }
     .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid #c6ba35; box-shadow: none; }
     .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
-    .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 2px; }
+    .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
+    @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 1px #000, 0 0 10px 2px currentColor; filter: brightness(1.5); } }
     .pa-mm-hero {
       position: absolute;
       z-index: 300;
-      background: #ff1f1f;
-      box-shadow: 0 0 0 1px rgba(0,0,0,.6);
+      left: 0;
+      top: 0;
+      border-radius: 3px;
+      background: #ff2a2a;
+      box-shadow: 0 0 0 1.5px #fff, 0 0 8px rgba(255,42,42,.9);
       pointer-events: none;
-      transition: left .12s linear, top .12s linear;
+      will-change: transform;
     }
     .pa-mm-view {
       position: absolute;
       z-index: 250;
-      border: 1px solid #ffff00;
+      left: 0;
+      top: 0;
+      border: 1px solid rgba(255,230,90,.9);
+      border-radius: 3px;
+      background: rgba(255,230,90,.06);
       box-sizing: border-box;
       pointer-events: none;
-      transition: left .12s linear, top .12s linear;
+      will-change: transform;
     }
     .pa-mm-coords {
       position: absolute;
-      left: 0;
-      bottom: 0;
+      left: 6px;
+      bottom: 6px;
       z-index: 400;
-      padding: 2px 3px;
-      font: 700 12px Arial, sans-serif;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font: 700 11px var(--pa-font);
       color: #fff;
-      background: rgba(0,0,0,.5);
+      background: rgba(10,11,16,.72);
+      border: 1px solid rgba(255,255,255,.14);
       pointer-events: none;
     }
-    .pa-mm-msg { display: none; position: absolute; inset: 0; padding: 30px 16px; text-align: center; color: #ddd; font-size: 12px; }
+    .pa-mm-msg { display: none; position: absolute; inset: 0; padding: 30px 16px; text-align: center; color: var(--pa-muted); font-size: 12px; }
     .pa-mm-bar {
       display: flex;
       align-items: center;
-      gap: 6px;
-      height: 19px;
-      padding: 0 4px 0 8px;
-      border-top: 1px solid #000;
-      background: #ccc;
-      color: #232323;
-      font: 11px/19px Arial, sans-serif;
+      gap: 8px;
+      padding: 6px 2px 0 4px;
+      font: 11px var(--pa-font);
       white-space: nowrap;
       overflow: hidden;
     }
-    .pa-mm-brand { font-weight: 700; }
-    .pa-mm-sep { color: #777; }
-    .pa-mm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #444; }
-    .pa-mm-bar label { display: flex; align-items: center; gap: 4px; }
+    .pa-mm-brand { font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
+    .pa-mm-sep { display: none; }
+    .pa-mm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--pa-muted); }
+    .pa-mm-bar label { display: flex; align-items: center; gap: 4px; color: transparent; font-size: 0; }
     .pa-mm-bar input {
-      width: 130px;
-      height: 14px;
-      padding: 0 3px;
-      border: 1px solid #888;
-      border-radius: 2px;
-      background: #fff;
-      color: #111;
-      font: 11px Arial, sans-serif;
+      width: 150px;
+      height: 22px;
+      padding: 0 9px;
+      border: 1px solid var(--pa-border);
+      border-radius: 7px;
+      background: rgba(0,0,0,.3);
+      color: var(--pa-text);
+      font: 11.5px var(--pa-font);
       outline: none;
     }
+    .pa-mm-bar input:focus { border-color: var(--pa-accent); }
+    .pa-mm-bar input::placeholder { color: var(--pa-muted); }
     .pa-mm-gear {
-      width: 16px;
-      height: 15px;
+      width: 22px;
+      height: 22px;
       padding: 0;
-      border: 0;
-      border-radius: 4px;
-      background: rgba(20,20,20,.8);
-      color: #ddd;
-      font-size: 10px;
-      line-height: 15px;
+      border: 1px solid var(--pa-border);
+      border-radius: 7px;
+      background: var(--pa-surface);
+      color: var(--pa-muted);
+      font-size: 12px;
+      line-height: 20px;
       cursor: pointer;
     }
-    .pa-mm-hidden-game { opacity: 0 !important; pointer-events: none !important; }
+    .pa-mm-gear:hover { color: var(--pa-accent); border-color: var(--pa-accent); }
+    .pa-mm-close:hover { color: var(--pa-danger); border-color: var(--pa-danger); }
+
+    html.pa-mm-replace .c-window.handheld-window {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
 
     /* ---------- berserker ---------- */
     .pa-berserk-icon {
@@ -1067,7 +1092,7 @@ div[data-chat-message-id] a {
             key: 'minimap',
             stateKey: 'mmEnabled',
             icon: '🗺️',
-            name: 'miniMap+',
+            name: 'Nowa mapa',
             tag: 'Interfejs',
             isNew: true,
             desc: 'Nowa mapa podręczna zamiast tej z gry: cała lokacja z zaznaczonymi mobami, elitami, herosami, NPC, graczami (sojusznicy, wrogowie) i przejściami, prostokąt widoku, współrzędne pod kursorem i wyszukiwarka (nazwa albo „x,y”). Kliknięcie na mapie = idź tam. Otwiera się zamiast mapy podręcznej z gry.',
@@ -1080,8 +1105,9 @@ div[data-chat-message-id] a {
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowMobs"> Pokazuj zwykłe moby</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowNpcs"> Pokazuj NPC</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowOthers"> Pokazuj innych graczy</label>
-              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#c6ba35">●</b> herosi · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
-              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz minimapę</button></div>`,
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowResp"> Pokazuj respy herosów (kółka z obwódką)</label>
+              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III · <b style="color:#c6ba35">●</b> herosi · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
+              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button></div>`,
         },
         {
             key: 'builds',
@@ -1872,7 +1898,7 @@ div[data-chat-message-id] a {
         },
         minimap(on) {
             miniMap.setEnabled(on);
-            showToast(on ? 'miniMap+ włączona – otwórz mapę podręczną w grze' : 'miniMap+ wyłączona');
+            showToast(on ? 'Nowa mapa włączona – otwórz podręczną mapę w grze' : 'Nowa mapa wyłączona');
         },
         builds(on) {
             builds.setEnabled(on);
@@ -4305,13 +4331,13 @@ function observeChatLinks() {
     })();
 
     // =================================================================
-    //  miniMap+ – podręczna minimapa (zastępuje mapę podręczną z gry)
+    //  Nowa mapa – podręczna minimapa (zastępuje mapę podręczną z gry)
     //  Dane zbierane cały czas z pakietów serwera, rysowane gdy otwarta.
     // =================================================================
     const miniMap = (function () {
         const COLORS = {
             hero: '#ff2a2a', other: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
-            npc: '#ddff00', mob: '#4d6bff', elite: '#00ffe9', elite2: '#039689', elite3: '#007500',
+            npc: '#ddff00', mob: '#4d6bff', elite: '#00ffe9', elite2: '#039689', elite3: '#ff9f1a',
             heros: '#c6ba35', titan: '#809912', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
             resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4',
         };
@@ -4390,6 +4416,7 @@ function observeChatLinks() {
             else if (tpl?.icon) icon = tpl.icon;
             if (icon) out.icon = icon;
             set('quest', n.hasOnetimeQuest || n.hasDailyQuest || undefined);
+            if (tpl?.isIconInvisible || n.isIconInvisible) out.invisible = true;
             return out;
         }
 
@@ -4495,6 +4522,7 @@ function observeChatLinks() {
 
         // ---------- klasyfikacja ----------
         function npcKind(n) {
+            if (n.invisible) return null;
             const type = Number(n.type);
             const wt = Number(n.wt) || 0;
             if (type === 2 || type === 3) {
@@ -4506,14 +4534,15 @@ function observeChatLinks() {
                 if (wt > 9) return 'elite';
                 return 'mob';
             }
-            if (type === 0 || type === 5 || type === 6 || !type) {
+            if (type === 0 || type === 5 || type === 6) {
                 if (wt > 29 && wt < 80) return 'elite3';
                 if (wt > 9 && wt < 20) return 'elite';
                 if (n.icon && GW_ICONS.some((g) => String(n.icon).includes(g))) return 'gw';
+                if (!n.nick || !String(n.nick).trim()) return null;   // dekoracje / obiekty bez nazwy
                 return 'npc';
             }
             if (type === 7) return 'item';
-            return 'npc';
+            return null;
         }
 
         function otherKind(o) {
@@ -4532,11 +4561,12 @@ function observeChatLinks() {
         function collectObjects() {
             const list = [];
             for (const g of gws) list.push(g);
-            for (const s of spawns) list.push(s);
+            if (state.mmShowResp) for (const s of spawns) list.push(s);
             for (const id in npcs) {
                 const n = npcs[id];
                 if (n.x === undefined || n.y === undefined) continue;
                 const kind = npcKind(n);
+                if (!kind) continue;
                 if (kind === 'mob' && !state.mmShowMobs) continue;
                 if (kind === 'npc' && !state.mmShowNpcs) continue;
                 list.push({ id: `n${id}`, x: n.x, y: n.y, nick: n.nick || '', lvl: n.lvl, grp: n.grp, kind });
@@ -4588,10 +4618,11 @@ function observeChatLinks() {
                 <div class="pa-mm-msg" data-mm-msg></div>
               </div>
               <div class="pa-mm-bar">
-                <span class="pa-mm-brand">miniMap+</span><span class="pa-mm-sep">|</span>
+                <span class="pa-mm-brand">Nowa mapa</span>
                 <span class="pa-mm-name" data-mm-name></span>
-                <label>Szukaj: <input type="text" data-mm-search spellcheck="false"></label>
+                <label>Szukaj <input type="text" data-mm-search spellcheck="false" placeholder="Szukaj: nazwa lub x,y"></label>
                 <button type="button" class="pa-mm-gear" data-mm-gear title="Ustawienia">⚙</button>
+                <button type="button" class="pa-mm-gear pa-mm-close" data-mm-close title="Zamknij (Esc)">✕</button>
               </div>`;
             (getStage() || document.body).appendChild(el);
             el.classList.toggle('pa-mm-fixed', !getStage());
@@ -4617,6 +4648,7 @@ function observeChatLinks() {
                 renderObjects();
             });
             el.querySelector('[data-mm-gear]').addEventListener('click', () => setMenuOpen(true, 'minimap'));
+            el.querySelector('[data-mm-close]').addEventListener('click', () => close(true));
 
             const map = el.querySelector('[data-mm-map]');
             map.addEventListener('mousemove', onHover);
@@ -4626,7 +4658,7 @@ function observeChatLinks() {
                 updateCoords();
             });
             map.addEventListener('click', (e) => {
-                const t = tileFromEvent(e);
+                const t = clickTarget(e);
                 if (!t) return;
                 goTo(t.x, t.y);
             });
@@ -4653,7 +4685,7 @@ function observeChatLinks() {
                     PAGE.hero.searchPath(x, y);
                 }
             } catch (error) {
-                console.warn('[darksad-addon] miniMap goTo', error);
+                console.warn('[darksad-addon] Nowa mapa goTo', error);
             }
         }
 
@@ -4665,14 +4697,24 @@ function observeChatLinks() {
                 tip.style.display = 'none';
                 return;
             }
-            const radius = scale < 6 ? 1 : 0;
-            const hits = collectObjects().filter((o) => Math.abs(o.x - t.x) <= radius && Math.abs(o.y - t.y) <= radius && matchesSearch(o));
+            const r = el.querySelector('[data-mm-map]').getBoundingClientRect();
+            const px = e.clientX - r.left;
+            const py = e.clientY - r.top;
+            const reach = Math.max(7, dotSize() / 2 + 5);
+            const hits = [];
+            for (const o of collectObjects()) {
+                if (!matchesSearch(o)) continue;
+                const cx = (o.x + 0.5) * scale;
+                const cy = (o.y + 0.5) * scale;
+                const d = Math.hypot(cx - px, cy - py);
+                if (d <= reach) hits.push({ o, d });
+            }
             if (!hits.length) {
                 tip.style.display = 'none';
                 return;
             }
-            hits.sort((a, b) => (LAYERS[b.kind] || 0) - (LAYERS[a.kind] || 0));
-            tip.innerHTML = hits.slice(0, 6).map((o) => {
+            hits.sort((a, b) => a.d - b.d || (LAYERS[b.o.kind] || 0) - (LAYERS[a.o.kind] || 0));
+            tip.innerHTML = hits.slice(0, 6).map(({ o }) => {
                 const type = o.player ? (o.clan ? `gracz · ${escapeHtmlPa(o.clan)}` : 'gracz') : (TYPE_NAMES[o.kind] || '');
                 const lvl = o.lvl ? ` · ${o.lvl}${o.prof || ''} lvl` : '';
                 const grp = o.grp ? ' · grupa' : '';
@@ -4683,6 +4725,23 @@ function observeChatLinks() {
             const y = Math.min(window.innerHeight - tip.offsetHeight - 8, e.clientY + 14);
             tip.style.left = `${Math.max(4, x)}px`;
             tip.style.top = `${Math.max(4, y)}px`;
+        }
+
+        // kliknięcie: jeśli kursor jest przy obiekcie – idź do niego
+        function clickTarget(e) {
+            const t = tileFromEvent(e);
+            if (!t) return null;
+            const r = el.querySelector('[data-mm-map]').getBoundingClientRect();
+            const px = e.clientX - r.left;
+            const py = e.clientY - r.top;
+            const reach = Math.max(6, dotSize() / 2 + 3);
+            let best = null;
+            for (const o of collectObjects()) {
+                if (o.kind === 'marker' || !matchesSearch(o)) continue;
+                const d = Math.hypot((o.x + 0.5) * scale - px, (o.y + 0.5) * scale - py);
+                if (d <= reach && (!best || d < best.d)) best = { d, x: o.x, y: o.y };
+            }
+            return best ? { x: best.x, y: best.y } : t;
         }
 
         function heroPos() {
@@ -4734,7 +4793,7 @@ function observeChatLinks() {
             mapW = town.w;
             mapH = town.h;
             const cr = getCanvasRect();
-            const maxBox = Math.min(700, cr.width - 30, cr.height - 50) * (state.mmSize / 100);
+            const maxBox = Math.min(700, cr.width - 40, cr.height - 70) * (state.mmSize / 100);
             const box = Math.max(120, maxBox);
             let w;
             let h;
@@ -4765,6 +4824,7 @@ function observeChatLinks() {
                 map.style.backgroundSize = '100% 100%';
                 map.style.backgroundPosition = '0 0';
             }
+            clearObjects();
             el.querySelector('[data-mm-name]').textContent = town.name || '';
             el.style.opacity = String(state.mmOpacity / 100);
             position();
@@ -4788,23 +4848,48 @@ function observeChatLinks() {
             return Math.max(4, Math.ceil(scale));
         }
 
+        const objEls = new Map();
+
         function renderObjects() {
             if (!el || !isOpen || !scale) return;
             const layer = el.querySelector('[data-mm-objects]');
             const s = dotSize();
             const off = (s - scale) / 2;
-            const html = [];
+            const seen = new Set();
             for (const o of collectObjects()) {
                 if (!matchesSearch(o)) continue;
-                const left = (o.x * scale - off).toFixed(1);
-                const top = (o.y * scale - off).toFixed(1);
-                const color = COLORS[o.kind] || '#fff';
-                const z = LAYERS[o.kind] || 100;
-                let cls = `pa-mm-obj pa-mm-${o.kind}`;
-                if (o.player) cls += ' pa-mm-player';
-                html.push(`<div class="${cls}" style="left:${left}px;top:${top}px;width:${s}px;height:${s}px;background:${color};z-index:${z}"></div>`);
+                const key = o.id || `${o.kind}-${o.x}-${o.y}`;
+                seen.add(key);
+                let d = objEls.get(key);
+                const cls = `pa-mm-obj pa-mm-${o.kind}${o.player ? ' pa-mm-player' : ''}`;
+                let fresh = false;
+                if (!d) {
+                    d = document.createElement('div');
+                    objEls.set(key, d);
+                    layer.appendChild(d);
+                    fresh = true;
+                }
+                if (!d.className.startsWith(cls)) d.className = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '');
+                d.style.width = `${s}px`;
+                d.style.height = `${s}px`;
+                d.style.background = COLORS[o.kind] || '#fff';
+                d.style.zIndex = String(LAYERS[o.kind] || 100);
+                d.style.transform = `translate(${(o.x * scale - off).toFixed(1)}px, ${(o.y * scale - off).toFixed(1)}px)`;
+                // płynny ruch dopiero po pierwszym ustawieniu pozycji
+                if (fresh) requestAnimationFrame(() => d.classList.add('pa-mm-anim'));
+                else if (!d.classList.contains('pa-mm-anim')) d.classList.add('pa-mm-anim');
             }
-            layer.innerHTML = html.join('');
+            for (const [key, d] of objEls) {
+                if (!seen.has(key)) {
+                    d.remove();
+                    objEls.delete(key);
+                }
+            }
+        }
+
+        function clearObjects() {
+            for (const d of objEls.values()) d.remove();
+            objEls.clear();
         }
 
         function queueRender() {
@@ -4831,8 +4916,7 @@ function observeChatLinks() {
             hero.style.display = 'block';
             hero.style.width = `${s}px`;
             hero.style.height = `${s}px`;
-            hero.style.left = `${h.rx * scale - off}px`;
-            hero.style.top = `${h.ry * scale - off}px`;
+            hero.style.transform = `translate(${(h.rx * scale - off).toFixed(2)}px, ${(h.ry * scale - off).toFixed(2)}px)`;
 
             // prostokąt widoku (to, co widać na ekranie gry)
             const cr = getCanvasRect();
@@ -4841,8 +4925,7 @@ function observeChatLinks() {
             const vx = Math.max(0, Math.min(mapW - vw, h.rx + 0.5 - vw / 2));
             const vy = Math.max(0, Math.min(mapH - vh, h.ry + 0.5 - vh / 2));
             view.style.display = 'block';
-            view.style.left = `${vx * scale}px`;
-            view.style.top = `${vy * scale}px`;
+            view.style.transform = `translate(${(vx * scale).toFixed(2)}px, ${(vy * scale).toFixed(2)}px)`;
             view.style.width = `${vw * scale}px`;
             view.style.height = `${vh * scale}px`;
             if (!hoverTile) updateCoords();
@@ -4850,32 +4933,30 @@ function observeChatLinks() {
 
         // ---------- okno mapy podręcznej z gry ----------
         function findGameMiniMap() {
-            const wins = document.querySelectorAll('.c-window, .border-window, [class*="mini-map"], [class*="minimap"], [class*="handheld"]');
-            for (const w of wins) {
+            const direct = document.querySelector('.c-window.handheld-window');
+            if (direct) return direct;
+            for (const w of document.querySelectorAll('.c-window, .border-window')) {
                 if (w.closest('.pa-mm') || w.closest(`#${ADDON_ID}-modal`)) continue;
                 const cls = String(w.className || '');
-                const title = w.querySelector('.header-label .text, .header-label')?.textContent || '';
-                if (/mini-?map|handheld/i.test(cls) || /mapa podr[eę]czna/i.test(title)) {
-                    return w.closest('.c-window, .border-window') || w;
-                }
+                const title = w.querySelector('.header-label .text')?.textContent || '';
+                if (/handheld|mini-?map/i.test(cls) || /podr[eę]czna mapa|mapa podr[eę]czna/i.test(title)) return w;
             }
             return null;
         }
 
+        // okno gry jest ukrywane przez CSS (visibility) – „otwarte” = podłączone i nie display:none
         function isShown(w) {
             if (!w || !w.isConnected) return false;
-            const cs = getComputedStyle(w);
-            return cs.display !== 'none' && cs.visibility !== 'hidden' && w.getClientRects().length > 0;
+            return w.style.display !== 'none' && getComputedStyle(w).display !== 'none';
         }
 
         function watchGame() {
             const g = findGameMiniMap();
-            if (g && isShown(g) && g !== hiddenGameWin) {
+            const shown = isShown(g);
+            if (shown && g !== hiddenGameWin) {
                 hiddenGameWin = g;
-                g.classList.add('pa-mm-hidden-game');
                 if (!isOpen) open();
             } else if (hiddenGameWin && !isShown(hiddenGameWin)) {
-                hiddenGameWin.classList.remove('pa-mm-hidden-game');
                 hiddenGameWin = null;
                 if (isOpen) close(false);
             }
@@ -4883,11 +4964,10 @@ function observeChatLinks() {
 
         function closeGameWindow() {
             const g = hiddenGameWin;
-            if (!g) return;
             hiddenGameWin = null;
-            const btn = g.querySelector('.close-button, .close-button-corner-decor button, [class*="close"]');
+            if (!g || !isShown(g)) return;
+            const btn = g.querySelector('.close-button-corner-decor .close-button, .close-button');
             if (btn) btn.click();
-            setTimeout(() => g.classList.remove('pa-mm-hidden-game'), 300);
         }
 
         // ---------- otwieranie ----------
@@ -4896,13 +4976,18 @@ function observeChatLinks() {
             isOpen = true;
             el.classList.add('pa-visible');
             buildMap();
-            clearInterval(tickTimer);
-            tickTimer = setInterval(tick, 120);
+            cancelAnimationFrame(tickTimer);
+            const loop = () => {
+                if (!isOpen) return;
+                tick();
+                tickTimer = requestAnimationFrame(loop);
+            };
+            tickTimer = requestAnimationFrame(loop);
         }
 
         function close(alsoGame = true) {
             isOpen = false;
-            clearInterval(tickTimer);
+            cancelAnimationFrame(tickTimer);
             if (el) el.classList.remove('pa-visible');
             if (tip) tip.style.display = 'none';
             if (alsoGame) closeGameWindow();
@@ -4931,13 +5016,14 @@ function observeChatLinks() {
         function setEnabled(on) {
             enabled = on;
             clearInterval(watchTimer);
+            document.documentElement.classList.toggle('pa-mm-replace', on);
             if (on) {
-                watchTimer = setInterval(watchGame, 250);
+                watchTimer = setInterval(watchGame, 100);
                 window.addEventListener('resize', onResize);
             } else {
                 close(true);
-                if (hiddenGameWin) hiddenGameWin.classList.remove('pa-mm-hidden-game');
                 hiddenGameWin = null;
+                objEls.clear();
                 window.removeEventListener('resize', onResize);
                 el?.remove();
                 tip?.remove();
@@ -4966,7 +5052,7 @@ function observeChatLinks() {
                         town, npcs: Object.keys(npcs).length, others: Object.keys(others).length, gws: gws.length,
                         mapImage: mapImageUrl(), gameMiniMap: g ? String(g.className) : null, visibleWindows: wins,
                     };
-                    console.log('[darksad-addon] miniMap+', info);
+                    console.log('[darksad-addon] Nowa mapa', info);
                     return info;
                 };
             } catch (_) {}
