@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '3.3';
+    const PANEL_VERSION = '3.4';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1161,7 +1161,11 @@ div[data-chat-message-id] a {
     .whoishere-window.pa-who-resizable .who-is-here { width: 100% !important; }
     .whoishere-window.pa-who-resizable .scroll-wrapper { max-height: none !important; }
     .whoishere-window.pa-who-resizing { user-select: none; }
-    .whoishere-window.pa-who-resizable .player-list > * { min-width: 0; }
+    .whoishere-window .player-list > * { min-width: 0; }
+    .whoishere-window .pa-who-nickwrap { display: flex !important; align-items: baseline; white-space: nowrap; }
+    .whoishere-window .pa-who-nickwrap { width: 100%; }
+    .whoishere-window .pa-who-nk { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+    .whoishere-window .pa-who-lv { flex: 0 0 auto; min-width: 46px; margin-left: 6px; text-align: right; white-space: nowrap; pointer-events: none; opacity: .95; }
 
 `;
 
@@ -4575,84 +4579,67 @@ function observeChatLinks() {
         const LVL_RE = /^\(?\s*\d+\s*[a-ząęółśżźćń]{0,3}\s*\)?$/i;
         const SPLIT_RE = /^([\s\S]*?\S)\s*(\(\s*\d+\s*[a-ząęółśżźćń]{0,3}\s*\))\s*$/i;
 
-        // nick i poziom w jednym tekście („dorsz potokowy (256m)”) – rozdzielamy na dwa elementy
-        function splitTextRows(list) {
-            const walker = document.createTreeWalker(list, NodeFilter.SHOW_TEXT);
-            const found = [];
-            let t;
-            while ((t = walker.nextNode())) {
-                if (t.parentElement?.closest('.pa-who-split')) continue;
-                if (SPLIT_RE.test(t.nodeValue || '')) found.push(t);
+        // Każdy wiersz: nick skracany („musztardowy ty…”), poziom zawsze na końcu, w jednej równej kolumnie.
+        function fixRow(row) {
+            if (row.dataset.paRowFix && row.dataset.paRowFix === row.textContent) return;
+            const leaves = [...row.querySelectorAll('*')].filter((e) => !e.children.length && !e.closest('.pa-who-nk, .pa-who-lv'));
+            let lvlEl = leaves.find((e) => LVL_RE.test((e.textContent || '').trim()) && e.style.display !== 'none') ||
+                leaves.find((e) => e.dataset.paLvlHidden === '1');
+            let nickEl = leaves
+                .filter((e) => e !== lvlEl && (e.textContent || '').trim().length >= 2 && !e.dataset.paLvlHidden)
+                .sort((x, y) => y.textContent.length - x.textContent.length)[0];
+            if (!nickEl) {
+                // nick jest już przerobiony – sprawdź, czy poziom się nie zmienił
+                const wrap = row.querySelector('.pa-who-nickwrap');
+                if (wrap && lvlEl) wrap.querySelector('.pa-who-lv').textContent = (lvlEl.textContent || '').trim();
+                row.dataset.paRowFix = row.textContent;
+                return;
             }
-            for (const textNode of found) {
-                const m = (textNode.nodeValue || '').match(SPLIT_RE);
-                const wrap = document.createElement('span');
-                wrap.className = 'pa-who-split';
-                wrap.style.cssText = 'display:flex;align-items:center;min-width:0;max-width:100%;width:100%;pointer-events:none;text-align:left;';
-                const nick = document.createElement('span');
-                nick.textContent = m[1];
-                nick.style.cssText = 'flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;text-align:left;';
-                const lvl = document.createElement('span');
-                lvl.textContent = m[2];
-                lvl.style.cssText = 'flex:0 0 auto;margin-left:4px;white-space:nowrap;pointer-events:none;';
-                wrap.append(nick, lvl);
-                const parent = textNode.parentElement;
-                textNode.replaceWith(wrap);
-                // przodkowie aż do wiersza mogą się kurczyć
-                let a = parent;
-                while (a && a !== list) {
-                    a.style.minWidth = '0';
-                    a.style.overflow = 'hidden';
-                    if (a.parentElement === list) {
-                        a.style.display = 'flex';
-                        a.style.alignItems = 'center';
-                        a.style.paddingRight = '10px';
-                    } else {
-                        a.style.display = 'flex';
-                        a.style.alignItems = 'center';
-                        a.style.flex = '1 1 auto';
-                    }
-                    a = a.parentElement;
+            let nickText = (nickEl.textContent || '').trim();
+            let lvlText = lvlEl ? (lvlEl.textContent || '').trim() : '';
+            if (!lvlEl) {
+                const m = nickText.match(SPLIT_RE);
+                if (!m) {
+                    row.dataset.paRowFix = row.textContent;
+                    return;
                 }
+                nickText = m[1];
+                lvlText = m[2];
+            } else {
+                lvlEl.style.display = 'none';
+                lvlEl.dataset.paLvlHidden = '1';
             }
+
+            const nk = document.createElement('span');
+            nk.className = 'pa-who-nk';
+            nk.textContent = nickText;
+            const lv = document.createElement('span');
+            lv.className = 'pa-who-lv';
+            lv.textContent = lvlText;
+            nickEl.textContent = '';
+            nickEl.append(nk, lv);
+            nickEl.classList.add('pa-who-nickwrap');
+
+            // nick i jego przodkowie wypełniają wiersz i mogą się kurczyć
+            for (let a = nickEl; a && a !== row; a = a.parentElement) {
+                a.style.minWidth = '0';
+                a.style.maxWidth = '100%';
+                a.style.width = 'auto';
+                a.style.overflow = 'hidden';
+                a.style.flex = '1 1 auto';
+                a.style.textAlign = 'left';
+            }
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.minWidth = '0';
+            row.style.paddingRight = '8px';
+            row.dataset.paRowFix = row.textContent;
         }
 
         function fixRows(win) {
             const list = win.querySelector('.player-list');
             if (!list) return;
-            splitTextRows(list);
-            for (const el of list.querySelectorAll('*')) {
-                if (el.dataset.paLvl === '1' || el.children.length || el.closest('.pa-who-split')) continue;
-                const txt = (el.textContent || '').trim();
-                if (!LVL_RE.test(txt)) continue;
-                el.dataset.paLvl = '1';
-                el.style.flexShrink = '0';
-                el.style.whiteSpace = 'nowrap';
-                el.style.marginLeft = '4px';
-                // idziemy w górę do elementu, w którym obok jest nick
-                let node = el;
-                while (node.parentElement && node.parentElement !== list && node.parentElement.children.length < 2) node = node.parentElement;
-                const row = node.parentElement;
-                if (!row || row === list) continue;
-                row.style.display = 'flex';
-                row.style.alignItems = 'center';
-                row.style.minWidth = '0';
-                row.style.paddingRight = '10px';
-                node.style.flexShrink = '0';
-                for (const sib of row.children) {
-                    if (sib === node) continue;
-                    if ((sib.textContent || '').trim().length < 2) {
-                        sib.style.flexShrink = '0';
-                        continue;
-                    }
-                    sib.style.flex = '0 1 auto';
-                    sib.style.minWidth = '0';
-                    sib.style.textAlign = 'left';
-                    sib.style.overflow = 'hidden';
-                    sib.style.textOverflow = 'ellipsis';
-                    sib.style.whiteSpace = 'nowrap';
-                }
-            }
+            for (const row of list.children) fixRow(row);
         }
 
         function attach(win) {
