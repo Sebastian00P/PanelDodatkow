@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '3.0';
+    const PANEL_VERSION = '3.1';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -39,7 +39,11 @@
         whoSize: null,                // {w, h}
         buildsEnabled: false,
         buildsPosition: null,
-        buildsBox: null,              // {w, h} – rozmiar okienka zestawów
+        buildsBox: null,
+        buildsProf: {},               // id zestawu -> profesja (w/p/b/m/t/h)
+        buildsAI: false,
+        buildsAIRange: 12,
+        buildsAIEnemiesOnly: false,              // {w, h} – rozmiar okienka zestawów
         buildsCompact: false,
         buildsCache: {},              // heroId -> {list:[{id,name}], currentId}
         mmEnabled: false,
@@ -72,7 +76,7 @@
         'hugeBoxShadow', 'hugeTextColor', 'hugeAutoCloseSeconds',
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
-        'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsCache',
+        'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns',
         'themeAccent', 'themeGlass',
     ];
@@ -94,6 +98,7 @@
             state.mmShowSpawns = saved.mmShowSpawns === true;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
+            if (!state.buildsProf || typeof state.buildsProf !== 'object') state.buildsProf = {};
 
             if (saved.collapsedGroups) {
                 collapsedGroups.t = Boolean(saved.collapsedGroups.t);
@@ -839,6 +844,19 @@ div[data-chat-message-id] a {
     .pa-builds-compact .pa-build .pa-build-name { display: none; }
     .pa-builds-status { margin-top: 4px; font-size: 9.5px; color: var(--pa-muted); }
     .pa-builds-status:empty { display: none; }
+    .pa-builds-status { white-space: pre-line; }
+    .pa-build .pa-build-prof {
+      flex: 0 0 auto;
+      padding: 0 .3em;
+      border-radius: 3px;
+      font-size: .8em;
+      background: rgba(255,255,255,.12);
+      color: var(--pa-text);
+    }
+    .pa-builds-compact .pa-build .pa-build-prof { display: none; }
+    .pa-builds-win .pa-win-head .pa-b-ai { width: auto; padding: 0 4px; font-weight: 700; font-size: 8.5px; }
+    .pa-bprof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; margin-bottom: 6px; }
+    .pa-bprof-grid .pa-field { margin: 0; }
     .pa-builds-status.pa-warn { color: #f5c451; }
     .pa-builds-empty { padding: 4px 2px; color: var(--pa-muted); font-size: 10.5px; line-height: 1.4; max-width: 200px; }
 
@@ -898,6 +916,10 @@ div[data-chat-message-id] a {
       cursor: pointer;
     }
     .pa-mm-go:hover { background: var(--pa-accent); color: #111; }
+    .pa-mm-go.pa-mm-stop { border-color: var(--pa-danger); background: rgba(255,93,108,.25); }
+    .pa-mm-go.pa-mm-stop:hover { background: var(--pa-danger); color: #fff; }
+    .pa-mm-row.pa-mm-chasing { border-color: var(--pa-danger); box-shadow: 0 0 0 1px rgba(255,93,108,.35); }
+    .pa-mm-side-title + .pa-mm-row ~ .pa-mm-side-title { margin-top: 6px; }
     .pa-mm-map {
       position: relative;
       overflow: hidden;
@@ -1173,8 +1195,15 @@ div[data-chat-message-id] a {
             name: 'Zmieniacz zestawów',
             tag: 'Ekwipunek',
             isNew: true,
-            desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy. Okienko można przesuwać i rozciągać za prawy dolny róg.',
+            desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy. Tryb AI sam zakłada zestaw przypisany do profesji najbliższego wroga. Okienko można przesuwać i rozciągać za prawy dolny róg.',
             settings: () => `
+              <div class="pa-sub">Profesje zestawów (dla AI)</div>
+              <div class="pa-bprof-grid" data-pa-b-profs></div>
+              <div class="pa-sub">AI zestawów</div>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="buildsAI"> Włącz AI – zakładaj zestaw pod profesję najbliższego wroga</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="buildsAIEnemiesOnly"> Tylko gracze oznaczeni jako wrogowie (bez neutralnych)</label>
+              <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania (kratki)</span><input type="number" min="3" max="80" step="1" data-pa-opt-num="buildsAIRange"></label></div>
+              <p class="pa-hint">Klan, sojusznicy i znajomi są pomijani. W walce zmiana czeka do jej końca. AI możesz też przełączać przyciskiem „AI” w okienku zestawów.</p>
               <label class="pa-check"><input type="checkbox" data-pa-opt="buildsCompact"> Tryb kompaktowy (same numery)</label>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="builds-reset-pos">Przywróć pozycję i rozmiar okienka</button></div>`,
         },
@@ -1530,6 +1559,7 @@ div[data-chat-message-id] a {
 
         // sekcje nowych dodatków
         berserk.renderSettings(modal);
+        builds.renderSettings(modal);
         whoResize.renderSettings(modal);
 
         // notyfikator
@@ -2100,6 +2130,16 @@ div[data-chat-message-id] a {
                 saveSettings();
                 if (key.startsWith('builds')) builds.render();
                 if (key.startsWith('mm')) miniMap.refresh();
+                return;
+            }
+
+            if (input.matches('[data-pa-bprof]')) {
+                const id = input.getAttribute('data-pa-bprof');
+                if (!state.buildsProf) state.buildsProf = {};
+                if (input.value) state.buildsProf[id] = input.value;
+                else delete state.buildsProf[id];
+                saveSettings();
+                builds.render();
                 return;
             }
 
@@ -4050,6 +4090,7 @@ function observeChatLinks() {
             win.innerHTML = `
               <div class="pa-win-head" data-pa-drag>
                 <b>Zestawy</b>
+                <button type="button" class="pa-icon-btn pa-b-ai" data-pa-b-ai title="AI: zakładaj zestaw pod profesję najbliższego wroga">AI</button>
                 <button type="button" class="pa-icon-btn" data-pa-b-settings title="Ustawienia">⚙</button>
                 <button type="button" class="pa-icon-btn" data-pa-b-close title="Ukryj (wyłącza dodatek)">✕</button>
               </div>
@@ -4078,6 +4119,19 @@ function observeChatLinks() {
             }
 
             win.querySelector('[data-pa-b-settings]').addEventListener('click', () => setMenuOpen(true, 'builds'));
+            win.querySelector('[data-pa-b-ai]').addEventListener('click', () => {
+                state.buildsAI = !state.buildsAI;
+                if (state.buildsAI && !Object.values(state.buildsProf || {}).some(Boolean)) {
+                    showToast('AI włączone – przypisz profesje do zestawów w ustawieniach (⚙)');
+                    setMenuOpen(true, 'builds');
+                } else {
+                    showToast(state.buildsAI ? 'AI zestawów włączone' : 'AI zestawów wyłączone');
+                }
+                aiInfo = '';
+                saveSettings();
+                render();
+                syncUi();
+            });
             win.querySelector('[data-pa-b-close]').addEventListener('click', () => {
                 state.buildsEnabled = false;
                 saveSettings();
@@ -4139,8 +4193,10 @@ function observeChatLinks() {
                     if (id === current) cls.push('pa-current');
                     if (id === pendingId) cls.push('pa-pending');
                     const name = escapeHtmlPa(friendlyName(id));
-                    return `<button type="button" class="${cls.join(' ')}" data-pa-build="${id}" title="${name}${id === current ? ' (założony)' : ''}\nLPM – załóż · PPM – zmień nazwę">
-                      <span class="pa-build-no">${id}</span><span class="pa-build-name">${name}</span></button>`;
+                    const prof = (state.buildsProf || {})[id];
+                    const profTag = prof ? `<span class="pa-build-prof" title="${PROFS[prof]}">${prof.toUpperCase()}</span>` : '';
+                    return `<button type="button" class="${cls.join(' ')}" data-pa-build="${id}" title="${name}${id === current ? ' (założony)' : ''}${prof ? ` · pod: ${PROFS[prof]}` : ''}\nLPM – załóż · PPM – zmień nazwę">
+                      <span class="pa-build-no">${id}</span><span class="pa-build-name">${name}</span>${profTag}</button>`;
                 }).join('');
             }
             renderStatus();
@@ -4199,16 +4255,88 @@ function observeChatLinks() {
 
         function renderStatus() {
             if (!win) return;
+            win.querySelector('[data-pa-b-ai]')?.classList.toggle('pa-on', Boolean(state.buildsAI));
             const status = win.querySelector('[data-pa-b-status]');
+            let text = '';
             if (pendingId !== null) {
-                status.textContent = isFighting()
+                text = isFighting()
                     ? `⚔ Walka – po niej: ${friendlyName(pendingId)}`
                     : `⏳ Zakładam: ${friendlyName(pendingId)}…`;
                 status.classList.add('pa-warn');
             } else {
-                status.textContent = isFighting() ? '⚔ Trwa walka – kliknięcie zakolejkuje zmianę' : '';
+                text = isFighting() ? '⚔ Trwa walka – kliknięcie zakolejkuje zmianę' : '';
                 status.classList.toggle('pa-warn', isFighting());
             }
+            if (state.buildsAI && aiInfo) text = text ? `${text}\n${aiInfo}` : aiInfo;
+            if (status.textContent !== text) {
+                status.textContent = text;
+                layout();
+            }
+        }
+
+        // ---------- AI: zestaw pod profesję najbliższego wroga ----------
+        const PROFS = { w: 'Wojownik', p: 'Paladyn', b: 'Tancerz ostrzy', m: 'Mag', t: 'Tropiciel', h: 'Łowca' };
+        let aiTimer = null;
+        let aiInfo = '';
+        let aiLastSwitch = 0;
+
+        function buildForProf(prof) {
+            const map = state.buildsProf || {};
+            const ids = Object.keys(map).filter((id) => map[id] === prof).map(Number).sort((a, b) => a - b);
+            return ids.length ? ids[0] : null;
+        }
+
+        function aiStep() {
+            if (!win || !state.buildsAI) {
+                if (aiInfo) {
+                    aiInfo = '';
+                    renderStatus();
+                }
+                return;
+            }
+            let players = [];
+            try { players = miniMap.getPlayers(); } catch (_) {}
+            const range = Number(state.buildsAIRange) || 12;
+            const targets = players.filter((p) => (state.buildsAIEnemiesOnly ? p.kind === 'enemy' : p.hostile) && p.dist <= range && p.prof);
+            const target = targets[0];
+            if (!target) {
+                aiInfo = `🤖 AI: brak wroga w zasięgu ${range} kratek`;
+                renderStatus();
+                return;
+            }
+            const profName = PROFS[target.prof] || target.prof;
+            const id = buildForProf(target.prof);
+            if (id === null) {
+                aiInfo = `🤖 ${target.nick} (${profName}) – brak zestawu pod tę profesję`;
+                renderStatus();
+                return;
+            }
+            aiInfo = `🤖 ${target.nick} (${profName}, ${Math.round(target.dist)} kr.) → ${friendlyName(id)}`;
+            renderStatus();
+            if (id === currentId || id === pendingId) return;
+            const now = Date.now();
+            if (now - aiLastSwitch < 2500) return;
+            aiLastSwitch = now;
+            choose(id);
+        }
+
+        function renderSettings(modal) {
+            const box = modal.querySelector('[data-pa-b-profs]');
+            if (!box || box.contains(document.activeElement)) return;
+            const live = Object.keys(list).map(Number);
+            const ids = (live.length ? live : cachedList().map((b) => Number(b.id))).sort((a, b) => a - b);
+            if (!ids.length) {
+                box.innerHTML = '<p class="pa-hint">Brak listy zestawów – odśwież grę (F5), gdy dodatek jest włączony.</p>';
+                return;
+            }
+            const map = state.buildsProf || {};
+            box.innerHTML = ids.map((id) => `
+              <label class="pa-field pa-bprof-row"><span>${id}. ${escapeHtmlPa(friendlyName(id))}</span>
+                <select data-pa-bprof="${id}">
+                  <option value="">— brak —</option>
+                  ${Object.entries(PROFS).map(([k, v]) => `<option value="${k}"${map[id] === k ? ' selected' : ''}>${v}</option>`).join('')}
+                </select>
+              </label>`).join('');
         }
 
         function setEnabled(on) {
@@ -4216,7 +4344,11 @@ function observeChatLinks() {
                 createWindow();
                 win.classList.add('pa-visible');
                 render();
+                clearInterval(aiTimer);
+                aiTimer = setInterval(aiStep, 700);
             } else {
+                clearInterval(aiTimer);
+                aiTimer = null;
                 pendingId = null;
                 stopPoll();
                 win?.remove();
@@ -4236,7 +4368,7 @@ function observeChatLinks() {
             if (state.buildsEnabled) setEnabled(true);
         }
 
-        return { init, setEnabled, render, resetPosition, choose };
+        return { init, setEnabled, render, resetPosition, choose, renderSettings };
     })();
 
     // =================================================================
@@ -4309,10 +4441,10 @@ function observeChatLinks() {
                 const m = (textNode.nodeValue || '').match(SPLIT_RE);
                 const wrap = document.createElement('span');
                 wrap.className = 'pa-who-split';
-                wrap.style.cssText = 'display:flex;align-items:center;min-width:0;max-width:100%;pointer-events:none;';
+                wrap.style.cssText = 'display:flex;align-items:center;min-width:0;max-width:100%;width:100%;pointer-events:none;text-align:left;';
                 const nick = document.createElement('span');
                 nick.textContent = m[1];
-                nick.style.cssText = 'flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;';
+                nick.style.cssText = 'flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;text-align:left;';
                 const lvl = document.createElement('span');
                 lvl.textContent = m[2];
                 lvl.style.cssText = 'flex:0 0 auto;margin-left:4px;white-space:nowrap;pointer-events:none;';
@@ -4368,6 +4500,7 @@ function observeChatLinks() {
                     }
                     sib.style.flex = '1 1 auto';
                     sib.style.minWidth = '0';
+                    sib.style.textAlign = 'left';
                     sib.style.overflow = 'hidden';
                     sib.style.textOverflow = 'ellipsis';
                     sib.style.whiteSpace = 'nowrap';
@@ -4897,6 +5030,15 @@ function observeChatLinks() {
                 syncUi();
             }));
             el.querySelector('[data-mm-side]').addEventListener('click', (e) => {
+                const chaseBtn = e.target.closest('[data-mm-chase]');
+                if (chaseBtn) {
+                    const id = chaseBtn.getAttribute('data-mm-chase');
+                    if (chase && chase.id === id) stopChase('Zatrzymano pościg');
+                    else startChase(id);
+                    sideSig = null;
+                    renderSide();
+                    return;
+                }
                 const btn = e.target.closest('[data-mm-approach]');
                 const row = e.target.closest('[data-mm-row]');
                 if (btn) {
@@ -4919,6 +5061,7 @@ function observeChatLinks() {
             map.addEventListener('click', (e) => {
                 const t = clickTarget(e);
                 if (!t) return;
+                if (chase) stopChase('Pościg przerwany');
                 goTo(t.x, t.y);
             });
         }
@@ -5034,14 +5177,27 @@ function observeChatLinks() {
 
         // rozmiar widoku gry w kratkach (wewnętrzny rozmiar płótna gry)
         function viewTiles() {
-            let best = null;
+            // największy z: wewnętrzny rozmiar płótna gry, jego rozmiar na ekranie, obszar gry
+            let w = 0;
+            let h = 0;
             for (const c of document.querySelectorAll('#GAME_CANVAS, .game-window-positioner canvas, canvas')) {
                 if (c.closest('.handheld-window, .c-window, .pa-mm')) continue;
-                if (!best || c.width * c.height > best.width * best.height) best = c;
+                const r = c.getBoundingClientRect();
+                if (r.width < 200 || r.height < 150) continue;
+                w = Math.max(w, c.width, r.width);
+                h = Math.max(h, c.height, r.height);
             }
-            if (best && best.width > 200 && best.height > 150) return { w: best.width / 32, h: best.height / 32 };
-            const cr = getCanvasRect();
-            return { w: cr.width / 32, h: cr.height / 32 };
+            const stage = getStage();
+            if (stage) {
+                const r = stage.getBoundingClientRect();
+                w = Math.max(w, r.width);
+                h = Math.max(h, r.height);
+            }
+            if (!w || !h) {
+                w = window.innerWidth;
+                h = window.innerHeight;
+            }
+            return { w: w / 32, h: h / 32 };
         }
 
         function mapImageUrl() {
@@ -5151,8 +5307,90 @@ function observeChatLinks() {
             showToast(`Podchodzę do (${x},${y})`);
         }
 
+        // ---------- gracze / pościg ----------
+        function getPlayers() {
+            if (!Object.keys(others).length) refreshOthersFromEngine();
+            const h = heroPos();
+            const out = [];
+            for (const id in others) {
+                const o = others[id];
+                if (o.x === undefined || o.y === undefined) continue;
+                const kind = otherKind(o);
+                const dist = h ? Math.hypot(o.x - h.x, o.y - h.y) : 999;
+                out.push({ id: String(id), nick: o.nick || '?', x: Number(o.x), y: Number(o.y), lvl: o.lvl, prof: o.prof || '', kind, dist, hostile: kind === 'enemy' || kind === 'other' });
+            }
+            return out.sort((a, b) => a.dist - b.dist);
+        }
+
+        function playerPos(id) {
+            const o = others[id];
+            if (o && o.x !== undefined) return { x: Number(o.x), y: Number(o.y), nick: o.nick };
+            try {
+                const d = PAGE.Engine?.others?.getById?.(id)?.d;
+                if (d && d.x !== undefined) return { x: Number(d.x), y: Number(d.y), nick: d.nick };
+            } catch (_) {}
+            return null;
+        }
+
+        let chase = null;
+        let chaseTimer = null;
+
+        function startChase(id) {
+            const p = playerPos(id);
+            if (!p) {
+                showToast('Nie widzę tego gracza na mapie');
+                return;
+            }
+            chase = { id, nick: p.nick || '?', target: '', lastCmd: 0, mapId: town?.id };
+            clearInterval(chaseTimer);
+            chaseTimer = setInterval(chaseStep, 250);
+            chaseStep();
+            showToast(`Gonię: ${chase.nick}`);
+        }
+
+        function stopChase(msg) {
+            if (!chase) return;
+            chase = null;
+            clearInterval(chaseTimer);
+            chaseTimer = null;
+            if (msg) showToast(msg);
+            sideSig = null;
+            if (isOpen) renderSide();
+        }
+
+        function chaseStep() {
+            if (!chase) return;
+            if (town && chase.mapId !== undefined && String(town.id) !== String(chase.mapId)) {
+                stopChase('Pościg przerwany – zmiana mapy');
+                return;
+            }
+            const p = playerPos(chase.id);
+            if (!p) {
+                stopChase(`${chase.nick} zniknął z mapy – koniec pościgu`);
+                return;
+            }
+            const h = heroPos();
+            if (!h) return;
+            // już stoimy obok – czekamy
+            if (Math.max(Math.abs(h.x - p.x), Math.abs(h.y - p.y)) <= 1) {
+                chase.target = '';
+                return;
+            }
+            const key = `${p.x},${p.y}`;
+            const now = Date.now();
+            if (key === chase.target && now - chase.lastCmd < 1500) return;
+            chase.target = key;
+            chase.lastCmd = now;
+            const dx = Math.sign(h.x - p.x);
+            const dy = Math.sign(h.y - p.y);
+            const tx = Math.max(0, Math.min((mapW || 999) - 1, p.x + (dx || (dy ? 0 : 1))));
+            const ty = Math.max(0, Math.min((mapH || 999) - 1, p.y + dy));
+            goTo(tx, ty);
+        }
+
         function renderSide() {
             const side = el.querySelector('[data-mm-side]');
+            const players = getPlayers().filter((p) => p.hostile).slice(0, 8);
             const list = [];
             for (const id in npcs) {
                 const n = npcs[id];
@@ -5161,17 +5399,27 @@ function observeChatLinks() {
                 if (kind && IMPORTANT[kind]) list.push({ kind, nick: n.nick || '?', lvl: n.lvl, x: n.x, y: n.y, grp: n.grp });
             }
             list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
-            const sig = list.map((o) => `${o.kind}${o.nick}${o.x},${o.y}`).join('|');
+            const sig = list.map((o) => `${o.kind}${o.nick}${o.x},${o.y}`).join('|') + '#' +
+                players.map((p) => `${p.id}:${p.x},${p.y}`).join('|') + '#' + (chase ? chase.id : '');
             if (sig === sideSig) return;
             sideSig = sig;
-            side.classList.toggle('pa-visible', list.length > 0);
+            side.classList.toggle('pa-visible', list.length > 0 || players.length > 0);
             side.style.maxHeight = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
-            side.innerHTML = `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` + list.map((o) => `
+            const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p) => {
+                const on = chase && chase.id === p.id;
+                return `
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" title="Kliknij, aby zaznaczyć na mapie">
+                <span class="pa-mm-row-dot" style="background:${COLORS[p.kind]}"></span>
+                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}</b><small>${p.kind === 'enemy' ? 'wróg' : 'gracz'}${p.lvl ? ` · ${p.lvl}${p.prof}` : ''} · ${Math.round(p.dist)} kr. · (${p.x},${p.y})</small></span>
+                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}">${on ? 'Stop' : 'Goń'}</button>
+              </div>`;
+            }).join('') : '';
+            side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o) => `
               <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" title="Kliknij, aby zaznaczyć na mapie">
                 <span class="pa-mm-row-dot" style="background:${COLORS[o.kind]}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(o.nick)}</b><small>${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})</small></span>
                 <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}">Podejdź</button>
-              </div>`).join('');
+              </div>`).join('') + playersHtml;
             position();
         }
 
@@ -5378,6 +5626,7 @@ function observeChatLinks() {
                 window.addEventListener('resize', onResize);
             } else {
                 close(true);
+                stopChase();
                 hiddenGameWin = null;
                 objEls.clear();
                 window.removeEventListener('resize', onResize);
@@ -5414,7 +5663,7 @@ function observeChatLinks() {
             } catch (_) {}
         }
 
-        return { init, setEnabled, toggle, refresh };
+        return { init, setEnabled, toggle, refresh, getPlayers, stopChase };
     })();
 
 
