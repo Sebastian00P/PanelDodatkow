@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4';
+    const PANEL_VERSION = '4.1';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -55,6 +55,8 @@
         mmShowMobs: true,
         mmShowNpcs: true,
         mmShowSpawns: false,
+        mmChaseAttack: true,
+        mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
     };
@@ -78,7 +80,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
     ];
 
@@ -97,6 +99,7 @@
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
             state.mmShowSpawns = saved.mmShowSpawns === true;
+            state.mmChaseAttack = saved.mmChaseAttack !== false;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
             if (!state.buildsProf || typeof state.buildsProf !== 'object') state.buildsProf = {};
@@ -948,6 +951,20 @@ div[data-chat-message-id] a {
       cursor: pointer;
     }
     .pa-mm-go:hover { background: var(--pa-accent); color: #111; }
+    .pa-mm-row-text b em { font-style: normal; font-weight: 600; color: var(--pa-muted); font-size: .92em; }
+    /* dużo graczy – ciaśniej */
+    .pa-mm-side.pa-mm-dense { gap: 3px; }
+    .pa-mm-dense .pa-mm-row { padding: 3px 5px 3px 7px; border-radius: 7px; gap: 6px; }
+    .pa-mm-dense .pa-mm-row-text b { font-size: 11px; }
+    .pa-mm-dense .pa-mm-row-text small { font-size: 9.5px; }
+    .pa-mm-dense .pa-mm-go { padding: 2px 7px; font-size: 10px; }
+    .pa-mm-xdense .pa-mm-row { padding: 2px 4px 2px 6px; }
+    .pa-mm-xdense .pa-mm-row-text { flex-direction: row; align-items: baseline; gap: 6px; }
+    .pa-mm-xdense .pa-mm-row-text b { flex: 1 1 auto; min-width: 0; }
+    .pa-mm-xdense .pa-mm-kind, .pa-mm-xdense .pa-mm-xy { display: none; }
+    .pa-mm-xdense .pa-mm-row-text small { flex: 0 0 auto; }
+    .pa-mm-xdense .pa-mm-row-dot { width: 8px; height: 8px; }
+    .pa-mm-xdense .pa-mm-go { padding: 1px 6px; }
     .pa-mm-go.pa-mm-stop { border-color: var(--pa-danger); background: rgba(255,93,108,.25); }
     .pa-mm-go.pa-mm-stop:hover { background: var(--pa-danger); color: #fff; }
     .pa-mm-row.pa-mm-chasing { border-color: var(--pa-danger); box-shadow: 0 0 0 1px rgba(255,93,108,.35); }
@@ -1044,6 +1061,19 @@ div[data-chat-message-id] a {
       min-width: 0;
     }
     .pa-mm-bar label { flex: 1 1 110px; min-width: 0; }
+    .pa-mm-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 1px 4px 6px 2px;
+      cursor: move;
+      user-select: none;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .pa-mm-head:active { cursor: grabbing; }
+    .pa-mm-grip { color: var(--pa-muted); font-size: 11px; letter-spacing: -2px; opacity: .7; }
+    .pa-mm-head .pa-mm-name { font-size: 11px; }
     .pa-mm-tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
     .pa-mm-brand { font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
     .pa-mm-sep { display: none; }
@@ -1171,7 +1201,7 @@ div[data-chat-message-id] a {
     .whoishere-window.pa-who-resizing { user-select: none; }
     .whoishere-window .player-list { width: auto !important; max-width: 100% !important; box-sizing: border-box; }
     .whoishere-window .player-list > * { min-width: 0; max-width: 100% !important; box-sizing: border-box !important; }
-    .whoishere-window .player-list > .pa-who-row { width: 100% !important; padding-right: 14px !important; overflow: hidden; }
+    .whoishere-window .player-list > .pa-who-row { padding-right: 4px !important; overflow: hidden; }
     .whoishere-window .pa-who-nickwrap { display: flex !important; align-items: baseline; white-space: nowrap; }
     .whoishere-window .pa-who-nickwrap { width: 100%; }
     .whoishere-window .pa-who-nk { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
@@ -1227,9 +1257,11 @@ div[data-chat-message-id] a {
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowMobs"> Pokazuj zwykłe moby</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowNpcs"> Pokazuj NPC</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowOthers"> Pokazuj innych graczy</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmChaseAttack"> Przycisk przy graczu: goń i atakuj (wyłączone = tylko goń)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
               <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
-              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button></div>`,
+              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button><button type="button" class="pa-btn" data-pa-action="mm-reset-pos">Przywróć pozycję mapy</button></div>
+              <p class="pa-hint">Mapę przesuwasz, łapiąc za jej górny pasek z nazwą.</p>`,
         },
         {
             key: 'builds',
@@ -2137,6 +2169,7 @@ div[data-chat-message-id] a {
                 if (name === 'builds-reset-pos') builds.resetPosition();
                 if (name === 'berserk-reset-pos') berserk.resetPosition();
                 if (name === 'who-reset') whoResize.reset();
+                if (name === 'mm-reset-pos') miniMap.resetPosition();
                 if (name === 'mm-open') {
                     setMenuOpen(false);
                     miniMap.toggle(true);
@@ -4571,6 +4604,7 @@ function observeChatLinks() {
             const pane = win.querySelector('.scroll-pane');
             if (pane) pane.style.maxHeight = 'none';
             refreshScroll(win);
+            fixRows(win);
         }
 
         function clearSize(win) {
@@ -4683,6 +4717,17 @@ function observeChatLinks() {
             const list = win.querySelector('.player-list');
             if (!list) return;
             for (const row of list.children) fixRow(row);
+            // wiersze nie mogą wychodzić poza widoczną część okna (pasek przewijania ~12 px)
+            const wrapper = win.querySelector('.scroll-wrapper') || list.parentElement;
+            const visibleRight = Math.min(wrapper.getBoundingClientRect().right, win.getBoundingClientRect().right) - 12;
+            for (const row of list.children) {
+                const left = row.getBoundingClientRect().left;
+                const w = Math.floor(visibleRight - left);
+                if (w > 40 && row.style.width !== `${w}px`) {
+                    row.style.setProperty('width', `${w}px`, 'important');
+                    row.style.setProperty('max-width', `${w}px`, 'important');
+                }
+            }
         }
 
         function attach(win) {
@@ -5153,6 +5198,11 @@ function observeChatLinks() {
             el.className = 'pa-mm';
             el.innerHTML = `
               <div class="pa-mm-col">
+              <div class="pa-mm-head" data-mm-drag title="Przeciągnij, aby przesunąć mapę">
+                <span class="pa-mm-grip">⋮⋮</span>
+                <span class="pa-mm-brand">Nowa mapa</span>
+                <span class="pa-mm-name" data-mm-name></span>
+              </div>
               <div class="pa-mm-map" data-mm-map>
                 <div class="pa-mm-objects" data-mm-objects></div>
                 <div class="pa-mm-view" data-mm-view></div>
@@ -5161,8 +5211,6 @@ function observeChatLinks() {
                 <div class="pa-mm-msg" data-mm-msg></div>
               </div>
               <div class="pa-mm-bar">
-                <span class="pa-mm-brand">Nowa mapa</span>
-                <span class="pa-mm-name" data-mm-name></span>
                 <label>Szukaj <input type="text" data-mm-search spellcheck="false" placeholder="Szukaj: nazwa lub x,y"></label>
                 <span class="pa-mm-tools">
                 <span class="pa-mm-zoom">
@@ -5201,6 +5249,10 @@ function observeChatLinks() {
             });
             el.querySelector('[data-mm-gear]').addEventListener('click', () => setMenuOpen(true, 'minimap'));
             el.querySelector('[data-mm-close]').addEventListener('click', () => close(true));
+            makeWinDraggable(el, el.querySelector('[data-mm-drag]'), (pos) => {
+                state.mmPos = pos;
+                saveSettings();
+            });
             el.querySelectorAll('[data-mm-zoom]').forEach((btn) => btn.addEventListener('click', () => {
                 const step = Number(btn.getAttribute('data-mm-zoom')) * 10;
                 state.mmSize = Math.max(30, Math.min(100, (Number(state.mmSize) || 90) + step));
@@ -5385,7 +5437,7 @@ function observeChatLinks() {
             // rozmiar zależy tylko od okna przeglądarki i ustawienia (100% = cała wysokość ekranu)
             const pct = Math.max(30, Math.min(100, Number(state.mmSize) || 90)) / 100;
             const availW = Math.max(200, window.innerWidth - 300);
-            const availH = Math.max(150, window.innerHeight - 100);
+            const availH = Math.max(150, window.innerHeight - 130);
             const fit = Math.min(availW / mapW, availH / mapH) * pct;
             let w = Math.max(120, Math.floor(mapW * fit));
             // wąska (wysoka) mapa – powiększamy ją do szerokości paska, jeśli zmieści się na ekranie
@@ -5438,9 +5490,31 @@ function observeChatLinks() {
 
         function position() {
             if (!el) return;
-            // zawsze na środku okna przeglądarki
-            el.style.left = `${Math.max(4, Math.round((window.innerWidth - el.offsetWidth) / 2))}px`;
-            el.style.top = `${Math.max(4, Math.round((window.innerHeight - el.offsetHeight) / 2))}px`;
+            const col = el.querySelector('.pa-mm-col');
+            const w = col ? col.offsetWidth : el.offsetWidth;
+            const h = col ? col.offsetHeight : el.offsetHeight;
+            let left;
+            let top;
+            if (state.mmPos) {
+                left = state.mmPos.left;
+                top = state.mmPos.top;
+            } else {
+                // domyślnie: mapa na środku, lekko w lewo – miejsce na listę po prawej
+                left = (window.innerWidth - w) / 2 - 120;
+                top = (window.innerHeight - h) / 2;
+            }
+            left = Math.max(4, Math.min(window.innerWidth - 80, left));
+            top = Math.max(4, Math.min(window.innerHeight - 60, top));
+            el.style.left = `${Math.round(left)}px`;
+            el.style.top = `${Math.round(top)}px`;
+            el.style.right = 'auto';
+            el.style.bottom = 'auto';
+        }
+
+        function resetPosition() {
+            state.mmPos = null;
+            saveSettings();
+            position();
         }
 
         function dotSize() {
@@ -5504,11 +5578,11 @@ function observeChatLinks() {
                 showToast('Nie widzę tego gracza na mapie');
                 return;
             }
-            chase = { id, nick: p.nick || '?', target: '', lastCmd: 0, mapId: town?.id };
+            chase = { id, nick: p.nick || '?', target: '', lastCmd: 0, lastAttack: 0, attacks: 0, mapId: town?.id };
             clearInterval(chaseTimer);
             chaseTimer = setInterval(chaseStep, 250);
             chaseStep();
-            showToast(`Gonię: ${chase.nick}`);
+            showToast(state.mmChaseAttack ? `Gonię i atakuję: ${chase.nick}` : `Gonię: ${chase.nick}`);
         }
 
         function stopChase(msg) {
@@ -5534,9 +5608,16 @@ function observeChatLinks() {
             }
             const h = heroPos();
             if (!h) return;
-            // już stoimy obok – czekamy
+            // już stoimy obok – atakujemy (albo czekamy)
             if (Math.max(Math.abs(h.x - p.x), Math.abs(h.y - p.y)) <= 1) {
                 chase.target = '';
+                if (state.mmChaseAttack) {
+                    const t = Date.now();
+                    if (t - chase.lastAttack >= 1000) {
+                        chase.lastAttack = t;
+                        net.send(`fight&a=attack&id=${chase.id}`);
+                    }
+                }
                 return;
             }
             const key = `${p.x},${p.y}`;
@@ -5551,9 +5632,15 @@ function observeChatLinks() {
             goTo(tx, ty);
         }
 
+        // walka się zaczęła – koniec pościgu
+        net.on('f', (f) => {
+            if (chase && f && String(f.init) === '1' && !f.close) stopChase(`Walka z ${chase.nick}!`);
+        });
+
         function renderSide() {
             const side = el.querySelector('[data-mm-side]');
-            const players = getPlayers().filter((p) => p.hostile).slice(0, 8);
+            const players = getPlayers().filter((p) => p.hostile)
+                .sort((a, b) => String(a.nick).localeCompare(String(b.nick), 'pl', { sensitivity: 'base' }));
             const list = [];
             for (const id in npcs) {
                 const n = npcs[id];
@@ -5567,14 +5654,17 @@ function observeChatLinks() {
             if (sig === sideSig) return;
             sideSig = sig;
             side.classList.toggle('pa-visible', list.length > 0 || players.length > 0);
+            const rowsCount = list.length + players.length;
+            side.classList.toggle('pa-mm-dense', rowsCount > 8);
+            side.classList.toggle('pa-mm-xdense', rowsCount > 16);
             side.style.height = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
             const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p) => {
                 const on = chase && chase.id === p.id;
                 return `
-              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" title="Kliknij, aby zaznaczyć na mapie">
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" title="${escapeHtmlPa(p.nick)}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg' : 'gracz'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})&#10;Kliknij, aby zaznaczyć na mapie">
                 <span class="pa-mm-row-dot" style="background:${COLORS[p.kind]}"></span>
-                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}</b><small>${p.kind === 'enemy' ? 'wróg' : 'gracz'}${p.lvl ? ` · ${p.lvl}${p.prof}` : ''} · ${Math.round(p.dist)} kr. · (${p.x},${p.y})</small></span>
-                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}">${on ? 'Stop' : 'Goń'}</button>
+                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : 'gracz · '}</span>${Math.round(p.dist)} kr.<span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
+                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" title="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : (state.mmChaseAttack ? 'Atak' : 'Goń')}</button>
               </div>`;
             }).join('') : '';
             side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o) => `
@@ -5583,7 +5673,6 @@ function observeChatLinks() {
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(o.nick)}</b><small>${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})</small></span>
                 <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}">Podejdź</button>
               </div>`).join('') + playersHtml;
-            position();
         }
 
         const objEls = new Map();
@@ -5818,7 +5907,7 @@ function observeChatLinks() {
             } catch (_) {}
         }
 
-        return { init, setEnabled, toggle, refresh, getPlayers, stopChase };
+        return { init, setEnabled, toggle, refresh, getPlayers, stopChase, resetPosition };
     })();
 
 
