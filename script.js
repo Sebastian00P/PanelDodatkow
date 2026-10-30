@@ -939,7 +939,7 @@ div[data-chat-message-id] a {
     .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
     .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
-    @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.6); } }
+    @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.2); } }
     .pa-mm-hero {
       position: absolute;
       z-index: 300;
@@ -4986,6 +4986,27 @@ function observeChatLinks() {
             else c.textContent = h ? `(${h.x},${h.y})` : '';
         }
 
+        function mapOffsetFromEngine() {
+            try {
+                const m = PAGE.Engine?.map;
+                const o = m?.d?.backgroundOffset || m?.backgroundOffset;
+                if (o && (o.x !== undefined || o.y !== undefined)) return { x: Number(o.x) || 0, y: Number(o.y) || 0 };
+            } catch (_) {}
+            return null;
+        }
+
+        // rozmiar widoku gry w kratkach (wewnętrzny rozmiar płótna gry)
+        function viewTiles() {
+            let best = null;
+            for (const c of document.querySelectorAll('#GAME_CANVAS, .game-window-positioner canvas, canvas')) {
+                if (c.closest('.handheld-window, .c-window, .pa-mm')) continue;
+                if (!best || c.width * c.height > best.width * best.height) best = c;
+            }
+            if (best && best.width > 200 && best.height > 150) return { w: best.width / 32, h: best.height / 32 };
+            const cr = getCanvasRect();
+            return { w: cr.width / 32, h: cr.height / 32 };
+        }
+
         function mapImageUrl() {
             try {
                 const img = PAGE.Engine?.map?.img;
@@ -5028,17 +5049,27 @@ function observeChatLinks() {
 
             const url = mapImageUrl();
             map.style.backgroundImage = url ? `url("${url}")` : '';
-            if (town.offset) {
+            // obraz mapy bywa większy niż sama mapa (margines + backgroundOffset) – nie rozciągamy go
+            map.style.backgroundSize = '100% 100%';
+            map.style.backgroundPosition = '0 0';
+            if (url) {
                 const img = new Image();
+                const buildScale = scale;
                 img.onload = () => {
+                    if (scale !== buildScale) return;
                     const k = scale / 32;
-                    map.style.backgroundSize = `${img.width * k}px ${img.height * k}px`;
-                    map.style.backgroundPosition = `${-town.offset.x * 32 * k}px ${-town.offset.y * 32 * k}px`;
+                    const tilesW = img.naturalWidth / 32;
+                    const tilesH = img.naturalHeight / 32;
+                    let off = town.offset || mapOffsetFromEngine();
+                    if (!off && (tilesW > mapW + 0.5 || tilesH > mapH + 0.5)) {
+                        off = { x: Math.max(0, (tilesW - mapW) / 2), y: Math.max(0, (tilesH - mapH) / 2) };
+                    }
+                    if (!off && Math.abs(tilesW - mapW) < 0.5 && Math.abs(tilesH - mapH) < 0.5) return;
+                    off = off || { x: 0, y: 0 };
+                    map.style.backgroundSize = `${img.naturalWidth * k}px ${img.naturalHeight * k}px`;
+                    map.style.backgroundPosition = `${-off.x * 32 * k}px ${-off.y * 32 * k}px`;
                 };
                 img.src = url;
-            } else {
-                map.style.backgroundSize = '100% 100%';
-                map.style.backgroundPosition = '0 0';
             }
             clearObjects();
             el.querySelector('[data-mm-zoom-val]').textContent = `${Math.round(pct * 100)}%`;
@@ -5185,11 +5216,22 @@ function observeChatLinks() {
             hero.style.transform = `translate(${(h.rx * scale - off).toFixed(2)}px, ${(h.ry * scale - off).toFixed(2)}px)`;
 
             // prostokąt widoku (to, co widać na ekranie gry)
-            const cr = getCanvasRect();
-            const vw = Math.min(mapW, cr.width / 32);
-            const vh = Math.min(mapH, cr.height / 32);
-            const vx = Math.max(0, Math.min(mapW - vw, h.rx + 0.5 - vw / 2));
-            const vy = Math.max(0, Math.min(mapH - vh, h.ry + 0.5 - vh / 2));
+            const vt = viewTiles();
+            const vw = Math.min(mapW, vt.w);
+            const vh = Math.min(mapH, vt.h);
+            let vx;
+            let vy;
+            const camera = PAGE.Engine?.map?.offset;
+            if (Array.isArray(camera) && Number.isFinite(camera[0]) && Number.isFinite(camera[1])) {
+                // kamera gry: lewy górny róg widoku w pikselach mapy
+                vx = camera[0] / 32;
+                vy = camera[1] / 32;
+            } else {
+                vx = h.rx + 0.5 - vw / 2;
+                vy = h.ry + 0.5 - vh / 2;
+            }
+            vx = Math.max(0, Math.min(mapW - vw, vx));
+            vy = Math.max(0, Math.min(mapH - vh, vy));
             view.style.display = 'block';
             view.style.transform = `translate(${(vx * scale).toFixed(2)}px, ${(vy * scale).toFixed(2)}px)`;
             view.style.width = `${vw * scale}px`;
