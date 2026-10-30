@@ -1003,6 +1003,7 @@ div[data-chat-message-id] a {
       pointer-events: none;
     }
     .pa-mm-obj.pa-mm-anim { transition: transform .45s linear; }
+    .pa-mm-obj.pa-mm-grave { box-shadow: 0 0 0 1.5px #000, 0 0 4px rgba(0,0,0,.8); }
     .pa-mm-obj.pa-mm-mob { box-shadow: 0 0 0 1px rgba(255,255,255,.85), 0 0 0 2px rgba(0,0,0,.5); }
     .pa-mm-obj.pa-mm-gw { border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
     .pa-mm-obj.pa-mm-player { box-shadow: 0 0 0 1px rgba(0,0,0,.8); }
@@ -1281,7 +1282,7 @@ div[data-chat-message-id] a {
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmChaseAttack"> Przycisk przy graczu: goń i atakuj (wyłączone = tylko goń)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
               <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania respu (kratki) – sprawdzony resp zostaje podświetlony</span><input type="number" min="1" max="60" step="1" data-pa-opt-num="mmSpawnRange"></label></div>
-              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#3a3a3a">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
+              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#3a3a3a">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie i obcy gracze · <b style="color:#fff;text-shadow:0 0 2px #000">●</b> groby · <b style="color:#2b3cff">■</b> przejścia</p>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button><button type="button" class="pa-btn" data-pa-action="mm-reset-pos">Przywróć pozycję mapy</button></div>
               <p class="pa-hint">Mapę przesuwasz, łapiąc za jej górny pasek z nazwą.</p>`,
         },
@@ -4911,18 +4912,18 @@ function observeChatLinks() {
     // =================================================================
     const miniMap = (function () {
         const COLORS = {
-            hero: '#ff2a2a', other: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
+            hero: '#ff2a2a', other: '#ff3b3b', grave: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
             npc: '#ddff00', mob: '#3a3a3a', elite: '#00ffe9', elite2: '#039689', elite3: '#ff9f1a',
             heros: '#ffd23f', herosEvent: '#ff4dd2', titan: '#b6ff1a', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
             resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4',
         };
         const LAYERS = {
-            gw: 70, item: 80, resp: 90, respEvent: 90, npc: 110, mob: 110, elite: 120, elite2: 130, elite3: 130,
+            gw: 70, item: 80, grave: 85, resp: 90, respEvent: 90, npc: 110, mob: 110, elite: 120, elite2: 130, elite3: 130,
             other: 140, friend: 140, clan: 140, ally: 140, enemy: 145, titan: 150, collosus: 150, heros: 160, herosEvent: 160, marker: 200,
         };
         const TYPE_NAMES = {
             titan: 'tytan', collosus: 'kolos', heros: 'heros', herosEvent: 'heros eventowy', elite3: 'elita III', elite2: 'elita II', elite: 'elita',
-            mob: 'potwór', npc: 'NPC', gw: 'przejście', item: 'przedmiot', resp: 'resp herosa', respEvent: 'resp (event)',
+            mob: 'potwór', npc: 'NPC', grave: 'grób', gw: 'przejście', item: 'przedmiot', resp: 'resp herosa', respEvent: 'resp (event)',
         };
         const GW_ICONS = ['mas/exit-ith.gif', 'mas/exit-ith1.gif', 'mas/exit.gif', 'mas/drzwi.gif', 'obj/drzwi.gif', 'mas/exit-h64c.gif'];
         const REL = { NONE: 1, FRIEND: 2, ENEMY: 3, CLAN: 4, CLAN_ALLY: 5, CLAN_ENEMY: 6, FRACTION_ALLY: 7, FRACTION_ENEMY: 8 };
@@ -5207,6 +5208,8 @@ function observeChatLinks() {
         // ---------- klasyfikacja ----------
         function npcKind(n) {
             if (n.invisible) return null;
+            // groby graczy – rozpoznajemy po grafice albo nazwie
+            if (/gr[oó]b|grave|tomb|nagrob/i.test(String(n.icon || '')) || /^\s*gr[oó]b\b/i.test(String(n.nick || ''))) return 'grave';
             const type = Number(n.type);
             const wt = Number(n.wt) || 0;
             if (type === 2 || type === 3) {
@@ -5230,6 +5233,15 @@ function observeChatLinks() {
         }
 
         function otherKind(o) {
+            // gra bywa, że podaje relację tekstem („fr”, „cl”, „en”, „cl-en”…) zamiast liczbą
+            const rel = String(o.relation ?? '').toLowerCase();
+            if (rel && isNaN(Number(rel))) {
+                if (/en/.test(rel)) return 'enemy';
+                if (rel === 'cl') return 'clan';
+                if (rel === 'fr') return 'friend';
+                if (/cl|fr/.test(rel)) return 'ally';
+                return 'other';
+            }
             switch (Number(o.relation)) {
                 case REL.FRIEND: return 'friend';
                 case REL.CLAN: return 'clan';
