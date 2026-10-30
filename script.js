@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '3.2';
+    const PANEL_VERSION = '3.3';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -4006,7 +4006,15 @@ function observeChatLinks() {
             } else if (data.list) {
                 mergeList(data.list);
             }
-            if (data.currentId !== undefined && data.currentId !== null) currentId = Number(data.currentId);
+            if (data.currentId !== undefined && data.currentId !== null) {
+                const next = Number(data.currentId);
+                // zestaw zmieniony w grze ręcznie (nie przez panel) – wyłącz AI
+                if (data.action !== 'INIT' && next !== currentId && currentId !== null &&
+                    !(lastSent && lastSent.id === next && Date.now() - lastSent.t < 10000)) {
+                    disableAI('AI zestawów wyłączone – zestaw zmieniony ręcznie');
+                }
+                currentId = next;
+            }
 
             if (pendingId !== null && currentId === pendingId) {
                 showToast(`Założono zestaw: ${friendlyName(pendingId)}`);
@@ -4053,7 +4061,34 @@ function observeChatLinks() {
             return false;
         }
 
+        let lastSent = null;
+        let inParty = null;
+        net.on('party', (party) => {
+            inParty = Boolean(party && typeof party === 'object' && Object.keys(party).length > 0);
+        });
+        function hasParty() {
+            if (inParty !== null) return inParty;
+            try {
+                const p = PAGE.Engine?.party;
+                if (p && typeof p.getMembers === 'function') return Object.keys(p.getMembers() || {}).length > 0;
+                return Boolean(p);
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function disableAI(reason) {
+            if (!aiOn()) return;
+            heroCfg().ai = false;
+            aiInfo = '';
+            saveSettings();
+            showToast(reason);
+            render();
+            syncUi();
+        }
+
         function sendSwitch(id) {
+            lastSent = { id: Number(id), t: Date.now() };
             const skillShop = PAGE.Engine?.skills ? '&skillshop=1' : '';
             return net.send(`builds&action=updateCurrent&id=${id}${skillShop}`);
         }
@@ -4089,8 +4124,9 @@ function observeChatLinks() {
             pollTimer = null;
         }
 
-        function choose(id) {
+        function choose(id, fromAI = false) {
             id = Number(id);
+            if (!fromAI) disableAI('AI zestawów wyłączone – wybrałeś zestaw ręcznie');
             if (pendingId === id) {
                 pendingId = null;
                 stopPoll();
@@ -4383,6 +4419,11 @@ function observeChatLinks() {
                 }
                 return;
             }
+            if (hasParty()) {
+                aiInfo = '🤖 AI wstrzymane – jesteś w grupie';
+                renderStatus();
+                return;
+            }
             let players = [];
             try { players = miniMap.getPlayers(); } catch (_) {}
             const range = Number(state.buildsAIRange) || 12;
@@ -4406,7 +4447,7 @@ function observeChatLinks() {
             const now = Date.now();
             if (now - aiLastSwitch < 2500) return;
             aiLastSwitch = now;
-            choose(id);
+            choose(id, true);
         }
 
         function setAI(on) {
@@ -4550,7 +4591,7 @@ function observeChatLinks() {
                 wrap.style.cssText = 'display:flex;align-items:center;min-width:0;max-width:100%;width:100%;pointer-events:none;text-align:left;';
                 const nick = document.createElement('span');
                 nick.textContent = m[1];
-                nick.style.cssText = 'flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;text-align:left;';
+                nick.style.cssText = 'flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;text-align:left;';
                 const lvl = document.createElement('span');
                 lvl.textContent = m[2];
                 lvl.style.cssText = 'flex:0 0 auto;margin-left:4px;white-space:nowrap;pointer-events:none;';
@@ -4604,7 +4645,7 @@ function observeChatLinks() {
                         sib.style.flexShrink = '0';
                         continue;
                     }
-                    sib.style.flex = '1 1 auto';
+                    sib.style.flex = '0 1 auto';
                     sib.style.minWidth = '0';
                     sib.style.textAlign = 'left';
                     sib.style.overflow = 'hidden';
