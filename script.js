@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.1';
+    const PANEL_VERSION = '4.5';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -3277,8 +3277,9 @@ function observeChatLinks() {
             for (const id in effects) {
                 const ef = effects[id];
                 const targeted = SHOW_TARGET.has(ef.type);
-                // efekty, które są wyłącznie na mojej postaci, pomijamy
-                if (ef.onlyHero && !targeted) continue;
+                // efekty wyłącznie na mojej postaci pomijamy tylko w drużynie –
+                // w walce solo (np. aury) jesteś całą drużyną, więc je pokazujemy
+                if (ef.onlyHero && !targeted && members.length > 1) continue;
                 if (!targeted && ef.count < Math.ceil(0.7 * members.length)) continue;
                 (byType[ef.type] ||= []).push(ef);
             }
