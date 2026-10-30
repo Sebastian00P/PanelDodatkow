@@ -710,6 +710,9 @@ div[data-chat-message-id] a {
     .pa-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 520px) { .pa-split { grid-template-columns: 1fr; } .pa-grid { grid-template-columns: 1fr; } }
     .pa-empty-search { display: none; padding: 30px 0; text-align: center; color: var(--pa-muted); font-size: 12px; }
+    .pa-coffee-footer { display: flex; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--pa-border); }
+    .pa-coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: var(--pa-accent); color: #1a1408 !important; font: 600 12px var(--pa-font); text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
+    .pa-coffee-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
 
     /* ---------- toast ---------- */
     .pa-toast {
@@ -1448,6 +1451,9 @@ div[data-chat-message-id] a {
           <div class="pa-section-title">Dodatki</div>
           <div class="pa-grid">${ADDONS.map(renderAddonCard).join('')}</div>
           <div class="pa-empty-search" data-pa-empty>Brak dodatków pasujących do wyszukiwania.</div>
+          <div class="pa-coffee-footer">
+            <a class="pa-coffee-btn" href="https://buycoffee.to/darksad" target="_blank" rel="noopener noreferrer">☕ Postaw kawę</a>
+          </div>
 
         </div>
       </div>`;
@@ -5835,7 +5841,6 @@ function observeChatLinks() {
         }
 
         function close(alsoGame = true) {
-            suppressUntil = Date.now() + 600;
             isOpen = false;
             cancelAnimationFrame(tickTimer);
             if (el) el.classList.remove('pa-visible');
@@ -5860,8 +5865,16 @@ function observeChatLinks() {
             }
             if (state.mmHotkey && !e.ctrlKey && !e.altKey && !e.metaKey && String(e.key).toLowerCase() === state.mmHotkey) {
                 if (e.repeat) return;
+                const wasOpen = isOpen;
                 toggle();
+                // ten sam klawisz może od razu otworzyć okno gry – blokuj tylko po zamknięciu klawiszem
+                if (wasOpen && !isOpen) suppressUntil = Date.now() + 400;
             }
+        }
+
+        // kliknięcie myszą (np. przycisk mapy w grze) zawsze ma działać od razu
+        function onPointerDown() {
+            suppressUntil = 0;
         }
 
         function setEnabled(on) {
@@ -5894,6 +5907,7 @@ function observeChatLinks() {
 
         function init() {
             document.addEventListener('keydown', onKey);
+            document.addEventListener('pointerdown', onPointerDown, true);
             if (state.mmEnabled) setEnabled(true);
             try {
                 PAGE.paMiniMapDebug = () => {
