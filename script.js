@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.5';
+    const PANEL_VERSION = '4.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -55,6 +55,7 @@
         mmShowMobs: true,
         mmShowNpcs: true,
         mmShowSpawns: true,
+        mmSpawnRange: 10,             // zasięg wykrywania herosa ze respu (kratki)
         mmChaseAttack: true,
         mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
@@ -80,7 +81,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmChaseAttack', 'mmPos',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
     ];
 
@@ -1022,14 +1023,12 @@ div[data-chat-message-id] a {
     @keyframes pa-mm-ring { 0% { transform: scale(1); opacity: .95; } 100% { transform: scale(3.4); opacity: 0; } }
     .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid #c6ba35; box-shadow: none; }
     .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
-    .pa-mm-obj.pa-mm-resp.pa-mm-near, .pa-mm-obj.pa-mm-respEvent.pa-mm-near {
-      border-width: 3px;
-      background: color-mix(in srgb, currentColor 45%, transparent) !important;
-      animation: pa-mm-resp-near 1s ease-in-out infinite;
+    .pa-mm-obj.pa-mm-resp.pa-mm-near {
+      border: 3px solid #fff36b;
+      background: rgba(255, 236, 80, .45) !important;
+      box-shadow: 0 0 0 1px #000, 0 0 10px 3px rgba(255, 236, 80, .8);
       z-index: 150 !important;
     }
-    .pa-mm-obj.pa-mm-resp.pa-mm-near { border-color: #fff36b; }
-    @keyframes pa-mm-resp-near { 50% { box-shadow: 0 0 0 2px #fff, 0 0 14px 5px currentColor; } }
     .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
     @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.2); } }
@@ -1280,6 +1279,7 @@ div[data-chat-message-id] a {
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowOthers"> Pokazuj innych graczy</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmChaseAttack"> Przycisk przy graczu: goń i atakuj (wyłączone = tylko goń)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
+              <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania respu (kratki) – sprawdzony resp zostaje podświetlony</span><input type="number" min="1" max="60" step="1" data-pa-opt-num="mmSpawnRange"></label></div>
               <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button><button type="button" class="pa-btn" data-pa-action="mm-reset-pos">Przywróć pozycję mapy</button></div>
               <p class="pa-hint">Mapę przesuwasz, łapiąc za jej górny pasek z nazwą.</p>`,
@@ -3315,6 +3315,8 @@ function observeChatLinks() {
             const rows = [];
             for (const list of groups) {
                 list.sort((a, b) => a.elapsed - b.elapsed);
+                // „Redukcja …” (bloku, obrażeń, kryta, przebicia) – nie pokazujemy
+                if (/^\s*redukcja/i.test(String(list[0].friendlyName || ''))) continue;
                 const cls = list[0].casterTeam == team ? 'pa-thp-positive' : 'pa-thp-negative';
                 const name = escapeHtml(list[0].friendlyName);
                 if (SHOW_TARGET.has(list[0].type)) {
@@ -5833,13 +5835,19 @@ function observeChatLinks() {
             });
         }
 
-        // resp w zasięgu wykrywania (kwadrat widzenia postaci) – podświetlamy kółko
-        function highlightNearSpawns(hx, hy, v) {
-            for (const d of el.querySelectorAll('.pa-mm-resp, .pa-mm-respEvent')) {
+        // respy zwykłych herosów: gdy raz podejdziemy w zasięg wykrywania, resp zostaje podświetlony
+        // (zapamiętane na sesję, osobno dla każdej mapy)
+        const checkedSpawns = new Set();
+        function highlightNearSpawns(hx, hy) {
+            const r = Math.max(1, Number(state.mmSpawnRange) || 10);
+            const mapKey = town?.id ?? '';
+            for (const d of el.querySelectorAll('.pa-mm-resp')) {
                 const x = Number(d.dataset.x);
                 const y = Number(d.dataset.y);
-                const near = Math.abs(x - hx) <= v && Math.abs(y - hy) <= v;
-                if (d.classList.contains('pa-mm-near') !== near) d.classList.toggle('pa-mm-near', near);
+                const key = `${mapKey}:${x},${y}`;
+                if (!checkedSpawns.has(key) && Math.hypot(x - hx, y - hy) <= r) checkedSpawns.add(key);
+                const on = checkedSpawns.has(key);
+                if (d.classList.contains('pa-mm-near') !== on) d.classList.toggle('pa-mm-near', on);
             }
         }
 
@@ -5874,7 +5882,7 @@ function observeChatLinks() {
             view.style.width = `${size}px`;
             view.style.height = `${size}px`;
             view.style.transform = `translate(${(cx - size / 2).toFixed(2)}px, ${(cy - size / 2).toFixed(2)}px)`;
-            highlightNearSpawns(Math.round(h.rx), Math.round(h.ry), v);
+            highlightNearSpawns(Math.round(h.x ?? h.rx), Math.round(h.y ?? h.ry));
             if (!hoverTile) updateCoords();
         }
 
