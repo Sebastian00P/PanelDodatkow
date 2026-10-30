@@ -55,7 +55,7 @@
         mmShowMobs: true,
         mmShowNpcs: true,
         mmShowSpawns: true,
-        mmSpawnRange: 10,             // zasięg wykrywania herosa ze respu (kratki)
+        mmSpawnRange: 9,              // zasięg wykrywania herosa ze respu (kratki)
         mmChaseAttack: true,
         mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
@@ -100,6 +100,16 @@
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
             state.mmShowSpawns = saved.mmShowSpawns !== false;
+            // jednorazowo: domyślny zasięg wykrywania respu zmieniony z 10 na 9 kratek
+            try {
+                if (!localStorage.getItem('pa_mm_spawn_range_v9')) {
+                    localStorage.setItem('pa_mm_spawn_range_v9', '1');
+                    if (Number(saved.mmSpawnRange) === 10) {
+                        state.mmSpawnRange = 9;
+                        setTimeout(saveSettings, 0);
+                    }
+                }
+            } catch (_) {}
             // jednorazowo: respy herosów stały się domyślnie włączone – włącz też u osób, które miały stary domyślny „wyłączony”
             try {
                 if (!localStorage.getItem('pa_mm_spawns_default_v2')) {
@@ -5892,7 +5902,7 @@ function observeChatLinks() {
         // respy zwykłych herosów: gdy raz podejdziemy w zasięg wykrywania, resp zostaje podświetlony
         // (do wyjścia z mapy – po zmianie mapy i powrocie trzeba sprawdzić je od nowa)
         function highlightNearSpawns(hx, hy) {
-            const r = Math.max(1, Number(state.mmSpawnRange) || 10);
+            const r = Math.max(1, Number(state.mmSpawnRange) || 9);
             const mapKey = town?.id ?? '';
             for (const d of el.querySelectorAll('.pa-mm-resp')) {
                 const x = Number(d.dataset.x);
