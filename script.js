@@ -49,7 +49,7 @@
         mmShowOthers: true,
         mmShowMobs: true,
         mmShowNpcs: true,
-        mmShowResp: true,
+        mmShowResp: false,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
     };
@@ -91,7 +91,7 @@
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
-            state.mmShowResp = saved.mmShowResp !== false;
+            state.mmShowResp = saved.mmShowResp === true;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
 
@@ -858,7 +858,45 @@ div[data-chat-message-id] a {
       user-select: none;
     }
     .pa-mm.pa-mm-fixed { position: fixed; z-index: 380; }
-    .pa-mm.pa-visible { display: block; animation: pa-pop .16s ease-out; }
+    .pa-mm.pa-visible { display: flex; gap: 8px; align-items: flex-start; }
+    .pa-mm-col { flex: 0 0 auto; }
+    .pa-mm-side {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      width: 210px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .pa-mm-side.pa-visible { display: flex; }
+    .pa-mm-side-title { font: 700 10.5px var(--pa-font); letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); padding: 2px 2px 0; }
+    .pa-mm-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 6px 6px 8px;
+      border: 1px solid var(--pa-border);
+      border-radius: 9px;
+      background: var(--pa-surface);
+      cursor: pointer;
+    }
+    .pa-mm-row:hover { border-color: var(--pa-border-strong); background: var(--pa-surface-2); }
+    .pa-mm-row-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 1px #000, 0 0 6px currentColor; }
+    .pa-mm-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .pa-mm-row-text b { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pa-mm-row-text small { font-size: 10px; color: var(--pa-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pa-mm-go {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border: 1px solid var(--pa-accent);
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--pa-accent) 22%, transparent);
+      color: var(--pa-text);
+      font: 700 10.5px var(--pa-font);
+      cursor: pointer;
+    }
+    .pa-mm-go:hover { background: var(--pa-accent); color: #111; }
+    .pa-mm.pa-visible { animation: pa-pop .16s ease-out; }
     .pa-mm-map {
       position: relative;
       overflow: hidden;
@@ -4474,6 +4512,7 @@ function observeChatLinks() {
                     }
                     gws.push({ id: `gw-${i}`, x: Number(g[i + 1]), y: Number(g[i + 2]), nick: name, kind: 'gw' });
                 }
+                gws = mergeGateways(gws);
                 changed = true;
             }
             const hh = data.handheld_minimap;
@@ -4489,6 +4528,28 @@ function observeChatLinks() {
             }
             if (changed) queueRender();
         });
+
+        // przejścia szerokie na 2+ kratki gra podaje osobno – łączymy w jedno
+        function mergeGateways(list) {
+            const groups = [];
+            for (const g of list) {
+                const grp = groups.find((x) => x.nick === g.nick && x.items.some((i) => Math.abs(i.x - g.x) <= 1 && Math.abs(i.y - g.y) <= 1));
+                if (grp) grp.items.push(g);
+                else groups.push({ nick: g.nick, items: [g] });
+            }
+            return groups.map((grp, i) => {
+                const xs = grp.items.map((t) => t.x);
+                const ys = grp.items.map((t) => t.y);
+                return {
+                    id: `gw-${i}`, kind: 'gw', nick: grp.nick,
+                    x: xs.reduce((a, b) => a + b, 0) / xs.length,
+                    y: ys.reduce((a, b) => a + b, 0) / ys.length,
+                    tx: grp.items[0].x, ty: grp.items[0].y,
+                    spanX: Math.max(...xs) - Math.min(...xs) + 1,
+                    spanY: Math.max(...ys) - Math.min(...ys) + 1,
+                };
+            });
+        }
 
         // gdy panel włączono po starcie gry – próbujemy pobrać stan z silnika
         function bootstrapFromEngine() {
@@ -4567,6 +4628,7 @@ function observeChatLinks() {
                 if (n.x === undefined || n.y === undefined) continue;
                 const kind = npcKind(n);
                 if (!kind) continue;
+                if (kind === 'gw' && gws.some((g) => Math.abs(g.x - n.x) <= 1.5 && Math.abs(g.y - n.y) <= 1.5)) continue;
                 if (kind === 'mob' && !state.mmShowMobs) continue;
                 if (kind === 'npc' && !state.mmShowNpcs) continue;
                 list.push({ id: `n${id}`, x: n.x, y: n.y, nick: n.nick || '', lvl: n.lvl, grp: n.grp, kind });
@@ -4597,10 +4659,23 @@ function observeChatLinks() {
         }
 
         function getCanvasRect() {
-            const c = document.querySelector('#GAME_CANVAS') || document.querySelector('.game-window-positioner canvas');
-            if (c) {
+            const main = document.querySelector('#GAME_CANVAS');
+            if (main) {
+                const r = main.getBoundingClientRect();
+                if (r.width > 200 && r.height > 200) return r;
+            }
+            // największy canvas gry (nie mapa podręczna, nie nasza)
+            let best = null;
+            for (const c of document.querySelectorAll('.game-window-positioner canvas, canvas')) {
+                if (c.closest('.handheld-window, .c-window, .pa-mm')) continue;
                 const r = c.getBoundingClientRect();
-                if (r.width > 50 && r.height > 50) return r;
+                if (!best || r.width * r.height > best.width * best.height) best = r;
+            }
+            if (best && best.width > 200 && best.height > 200) return best;
+            const stage = getStage();
+            if (stage) {
+                const r = stage.getBoundingClientRect();
+                if (r.width > 200 && r.height > 200) return r;
             }
             return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
         }
@@ -4610,6 +4685,7 @@ function observeChatLinks() {
             el = document.createElement('div');
             el.className = 'pa-mm';
             el.innerHTML = `
+              <div class="pa-mm-col">
               <div class="pa-mm-map" data-mm-map>
                 <div class="pa-mm-objects" data-mm-objects></div>
                 <div class="pa-mm-view" data-mm-view></div>
@@ -4623,7 +4699,9 @@ function observeChatLinks() {
                 <label>Szukaj <input type="text" data-mm-search spellcheck="false" placeholder="Szukaj: nazwa lub x,y"></label>
                 <button type="button" class="pa-mm-gear" data-mm-gear title="Ustawienia">⚙</button>
                 <button type="button" class="pa-mm-gear pa-mm-close" data-mm-close title="Zamknij (Esc)">✕</button>
-              </div>`;
+              </div>
+              </div>
+              <div class="pa-mm-side" data-mm-side></div>`;
             (getStage() || document.body).appendChild(el);
             el.classList.toggle('pa-mm-fixed', !getStage());
 
@@ -4649,6 +4727,18 @@ function observeChatLinks() {
             });
             el.querySelector('[data-mm-gear]').addEventListener('click', () => setMenuOpen(true, 'minimap'));
             el.querySelector('[data-mm-close]').addEventListener('click', () => close(true));
+            el.querySelector('[data-mm-side]').addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-mm-approach]');
+                const row = e.target.closest('[data-mm-row]');
+                if (btn) {
+                    const [x, y] = btn.getAttribute('data-mm-approach').split(',').map(Number);
+                    approach(x, y);
+                } else if (row) {
+                    const [x, y] = row.getAttribute('data-mm-row').split(',').map(Number);
+                    search = { text: '', coords: [x, y] };
+                    renderObjects();
+                }
+            });
 
             const map = el.querySelector('[data-mm-map]');
             map.addEventListener('mousemove', onHover);
@@ -4718,7 +4808,7 @@ function observeChatLinks() {
                 const type = o.player ? (o.clan ? `gracz · ${escapeHtmlPa(o.clan)}` : 'gracz') : (TYPE_NAMES[o.kind] || '');
                 const lvl = o.lvl ? ` · ${o.lvl}${o.prof || ''} lvl` : '';
                 const grp = o.grp ? ' · grupa' : '';
-                return `<div><b style="color:${COLORS[o.kind] || '#fff'}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${o.x},${o.y})</span></div>`;
+                return `<div><b style="color:${COLORS[o.kind] || '#fff'}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${Math.round(o.tx ?? o.x)},${Math.round(o.ty ?? o.y)})</span></div>`;
             }).join('<div style="height:4px"></div>');
             tip.style.display = 'block';
             const x = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + 14);
@@ -4739,7 +4829,7 @@ function observeChatLinks() {
             for (const o of collectObjects()) {
                 if (o.kind === 'marker' || !matchesSearch(o)) continue;
                 const d = Math.hypot((o.x + 0.5) * scale - px, (o.y + 0.5) * scale - py);
-                if (d <= reach && (!best || d < best.d)) best = { d, x: o.x, y: o.y };
+                if (d <= reach && (!best || d < best.d)) best = { d, x: Math.round(o.tx ?? o.x), y: Math.round(o.ty ?? o.y) };
             }
             return best ? { x: best.x, y: best.y } : t;
         }
@@ -4827,8 +4917,9 @@ function observeChatLinks() {
             clearObjects();
             el.querySelector('[data-mm-name]').textContent = town.name || '';
             el.style.opacity = String(state.mmOpacity / 100);
-            position();
+            sideSig = '';
             renderObjects();
+            position();
             tick();
         }
 
@@ -4845,7 +4936,51 @@ function observeChatLinks() {
         }
 
         function dotSize() {
-            return Math.max(4, Math.ceil(scale));
+            return Math.max(7, Math.ceil(scale * 1.15));
+        }
+
+        const IMPORTANT = { titan: 1, collosus: 2, heros: 3, elite3: 4, elite2: 5 };
+        let sideSig = '';
+
+        function approach(x, y) {
+            const h = heroPos();
+            let tx = x;
+            let ty = y;
+            if (h) {
+                const dx = Math.sign(h.x - x);
+                const dy = Math.sign(h.y - y);
+                tx = x + (dx || (dy ? 0 : 1));
+                ty = y + dy;
+            } else {
+                tx = x + 1;
+            }
+            tx = Math.max(0, Math.min(mapW - 1, tx));
+            ty = Math.max(0, Math.min(mapH - 1, ty));
+            goTo(tx, ty);
+            showToast(`Podchodzę do (${x},${y})`);
+        }
+
+        function renderSide() {
+            const side = el.querySelector('[data-mm-side]');
+            const list = [];
+            for (const id in npcs) {
+                const n = npcs[id];
+                if (n.x === undefined) continue;
+                const kind = npcKind(n);
+                if (kind && IMPORTANT[kind]) list.push({ kind, nick: n.nick || '?', lvl: n.lvl, x: n.x, y: n.y, grp: n.grp });
+            }
+            list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
+            const sig = list.map((o) => `${o.kind}${o.nick}${o.x},${o.y}`).join('|');
+            if (sig === sideSig) return;
+            sideSig = sig;
+            side.classList.toggle('pa-visible', list.length > 0);
+            side.style.maxHeight = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
+            side.innerHTML = `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` + list.map((o) => `
+              <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" title="Kliknij, aby zaznaczyć na mapie">
+                <span class="pa-mm-row-dot" style="background:${COLORS[o.kind]}"></span>
+                <span class="pa-mm-row-text"><b>${escapeHtmlPa(o.nick)}</b><small>${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})</small></span>
+                <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}">Podejdź</button>
+              </div>`).join('');            position();
         }
 
         const objEls = new Map();
@@ -4870,8 +5005,12 @@ function observeChatLinks() {
                     fresh = true;
                 }
                 if (!d.className.startsWith(cls)) d.className = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '');
-                d.style.width = `${s}px`;
-                d.style.height = `${s}px`;
+                const w = o.spanX ? Math.max(s, o.spanX * scale) : s;
+                const hgt = o.spanY ? Math.max(s, o.spanY * scale) : s;
+                d.style.width = `${w}px`;
+                d.style.height = `${hgt}px`;
+                d.style.marginLeft = `${(s - w) / 2}px`;
+                d.style.marginTop = `${(s - hgt) / 2}px`;
                 d.style.background = COLORS[o.kind] || '#fff';
                 d.style.zIndex = String(LAYERS[o.kind] || 100);
                 d.style.transform = `translate(${(o.x * scale - off).toFixed(1)}px, ${(o.y * scale - off).toFixed(1)}px)`;
@@ -4885,6 +5024,7 @@ function observeChatLinks() {
                     objEls.delete(key);
                 }
             }
+            renderSide();
         }
 
         function clearObjects() {
@@ -4914,8 +5054,8 @@ function observeChatLinks() {
             const s = dotSize();
             const off = (s - scale) / 2;
             hero.style.display = 'block';
-            hero.style.width = `${s}px`;
-            hero.style.height = `${s}px`;
+            hero.style.width = `${s + 1}px`;
+            hero.style.height = `${s + 1}px`;
             hero.style.transform = `translate(${(h.rx * scale - off).toFixed(2)}px, ${(h.ry * scale - off).toFixed(2)}px)`;
 
             // prostokąt widoku (to, co widać na ekranie gry)
@@ -4950,9 +5090,16 @@ function observeChatLinks() {
             return w.style.display !== 'none' && getComputedStyle(w).display !== 'none';
         }
 
+        let suppressUntil = 0;
+
         function watchGame() {
             const g = findGameMiniMap();
             const shown = isShown(g);
+            if (shown && g !== hiddenGameWin && Date.now() < suppressUntil) {
+                // okno gry otworzyło się tuż po zamknięciu naszej mapy (ten sam klawisz) – zamknij je
+                g.querySelector('.close-button-corner-decor .close-button, .close-button')?.click();
+                return;
+            }
             if (shown && g !== hiddenGameWin) {
                 hiddenGameWin = g;
                 if (!isOpen) open();
@@ -4986,6 +5133,7 @@ function observeChatLinks() {
         }
 
         function close(alsoGame = true) {
+            suppressUntil = Date.now() + 600;
             isOpen = false;
             cancelAnimationFrame(tickTimer);
             if (el) el.classList.remove('pa-visible');
@@ -5009,6 +5157,7 @@ function observeChatLinks() {
                 return;
             }
             if (state.mmHotkey && !e.ctrlKey && !e.altKey && !e.metaKey && String(e.key).toLowerCase() === state.mmHotkey) {
+                if (e.repeat) return;
                 toggle();
             }
         }
@@ -5018,7 +5167,7 @@ function observeChatLinks() {
             clearInterval(watchTimer);
             document.documentElement.classList.toggle('pa-mm-replace', on);
             if (on) {
-                watchTimer = setInterval(watchGame, 100);
+                watchTimer = setInterval(watchGame, 50);
                 window.addEventListener('resize', onResize);
             } else {
                 close(true);
