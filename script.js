@@ -55,7 +55,7 @@
         mmShowMobs: true,
         mmShowNpcs: true,
         mmShowSpawns: true,
-        mmSpawnRange: 9,              // zasięg wykrywania herosa ze respu (kratki)
+        mmSpawnRange: 10,             // zasięg wykrywania herosa ze respu (kratki)
         mmChaseAttack: true,
         mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
@@ -100,16 +100,6 @@
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
             state.mmShowSpawns = saved.mmShowSpawns !== false;
-            // jednorazowo: domyślny zasięg wykrywania respu zmieniony z 10 na 9 kratek
-            try {
-                if (!localStorage.getItem('pa_mm_spawn_range_v9')) {
-                    localStorage.setItem('pa_mm_spawn_range_v9', '1');
-                    if (Number(saved.mmSpawnRange) === 10) {
-                        state.mmSpawnRange = 9;
-                        setTimeout(saveSettings, 0);
-                    }
-                }
-            } catch (_) {}
             // jednorazowo: respy herosów stały się domyślnie włączone – włącz też u osób, które miały stary domyślny „wyłączony”
             try {
                 if (!localStorage.getItem('pa_mm_spawns_default_v2')) {
@@ -5000,6 +4990,7 @@ function observeChatLinks() {
                 h: Number(t.y) || 0,
                 offset: t.backgroundOffset || null,
                 visibility: Number(t.visibility) || 0,
+                pvp: t.pvp,
             };
             for (const k in npcs) delete npcs[k];
             for (const k in others) delete others[k];
@@ -5051,6 +5042,7 @@ function observeChatLinks() {
                 } else if (town && data.town.visibility !== undefined) {
                     town.visibility = Number(data.town.visibility) || 0;
                 }
+                if (town && data.town.pvp !== undefined) town.pvp = data.town.pvp;
                 changed = true;
             }
             if (Array.isArray(data.icons)) for (const i of data.icons) icons[i.id] = i;
@@ -5902,7 +5894,7 @@ function observeChatLinks() {
         // respy zwykłych herosów: gdy raz podejdziemy w zasięg wykrywania, resp zostaje podświetlony
         // (do wyjścia z mapy – po zmianie mapy i powrocie trzeba sprawdzić je od nowa)
         function highlightNearSpawns(hx, hy) {
-            const r = Math.max(1, Number(state.mmSpawnRange) || 9);
+            const r = Math.max(1, Number(state.mmSpawnRange) || 10);
             const mapKey = town?.id ?? '';
             for (const d of el.querySelectorAll('.pa-mm-resp')) {
                 const x = Number(d.dataset.x);
@@ -5937,14 +5929,18 @@ function observeChatLinks() {
             if (!v) {
                 try { v = Number(PAGE.Engine?.map?.d?.visibility) || 0; } catch (_) {}
             }
-            if (!v) v = 16;
-            const size = (2 * v + 1) * scale;
-            const cx = (h.rx + 0.5) * scale;
-            const cy = (h.ry + 0.5) * scale;
-            view.style.display = 'block';
-            view.style.width = `${size}px`;
-            view.style.height = `${size}px`;
-            view.style.transform = `translate(${(cx - size / 2).toFixed(2)}px, ${(cy - size / 2).toFixed(2)}px)`;
+            // mapa bez ograniczonej widoczności (bez PvP) – widać całą mapę, więc bez kwadratu wykrywania
+            if (v > 0) {
+                const size = (2 * v + 1) * scale;
+                const cx = (h.rx + 0.5) * scale;
+                const cy = (h.ry + 0.5) * scale;
+                view.style.display = 'block';
+                view.style.width = `${size}px`;
+                view.style.height = `${size}px`;
+                view.style.transform = `translate(${(cx - size / 2).toFixed(2)}px, ${(cy - size / 2).toFixed(2)}px)`;
+            } else {
+                view.style.display = 'none';
+            }
             highlightNearSpawns(Math.round(h.x ?? h.rx), Math.round(h.y ?? h.ry));
             if (!hoverTile) updateCoords();
         }
@@ -6087,7 +6083,7 @@ function observeChatLinks() {
                         .map((w) => ({ cls: String(w.className), title: w.querySelector('.header-label .text')?.textContent?.trim() }));
                     const info = {
                         town, npcs: Object.keys(npcs).length, others: Object.keys(others).length, gws: gws.length,
-                        spawns: spawns.length, heroLocRaw: lastHeroLoc, mapImage: mapImageUrl(), gameMiniMap: g ? String(g.className) : null, visibleWindows: wins,
+                        visibility: town?.visibility, pvp: town?.pvp ?? (() => { try { return PAGE.Engine?.map?.d?.pvp; } catch (_) { return undefined; } })(), spawns: spawns.length, heroLocRaw: lastHeroLoc, mapImage: mapImageUrl(), gameMiniMap: g ? String(g.className) : null, visibleWindows: wins,
                     };
                     console.log('[darksad-addon] Nowa mapa', info);
                     return info;
