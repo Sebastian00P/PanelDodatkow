@@ -40,12 +40,13 @@
         titanPosition: null,
         // --- nowe ---
         berserkEnabled: false,
-        berserkIconOffset: null,      // {left, top} względem prawej kolumny
+        berserkRozwinOffset: null,    // {left, top} względem przycisku „Rozwiń”
         whoResizeEnabled: false,
         whoSize: null,                // {w, h}
         buildsEnabled: false,
         buildsPosition: null,
-        buildsColumns: 2,
+        buildsColumns: 0,             // 0 = automatycznie wg szerokości
+        buildsSize: null,             // {w, h}
         buildsCompact: false,
         buildsCache: {},              // heroId -> {list:[{id,name}], currentId}
         themeAccent: '',              // '' = auto (z motywu gry)
@@ -69,8 +70,8 @@
         'hugeMessageEnabled', 'hugeMessagePosition', 'hugeMyNick', 'hugeBgColor', 'hugeBorderColor',
         'hugeBoxShadow', 'hugeTextColor', 'hugeAutoCloseSeconds',
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
-        'berserkEnabled', 'berserkIconOffset', 'whoResizeEnabled', 'whoSize',
-        'buildsEnabled', 'buildsPosition', 'buildsColumns', 'buildsCompact', 'buildsCache',
+        'berserkEnabled', 'berserkRozwinOffset', 'whoResizeEnabled', 'whoSize',
+        'buildsEnabled', 'buildsPosition', 'buildsColumns', 'buildsSize', 'buildsCompact', 'buildsCache',
         'themeAccent', 'themeGlass',
     ];
 
@@ -86,7 +87,7 @@
             state.titanHighlightOwn = saved.titanHighlightOwn !== false;
             state.themeGlass = saved.themeGlass !== false;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
-            state.buildsColumns = Math.min(6, Math.max(1, Number(state.buildsColumns) || 2));
+            state.buildsColumns = Math.min(6, Math.max(0, Math.round(Number(state.buildsColumns)) || 0));
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
 
             if (saved.collapsedGroups) {
@@ -419,9 +420,7 @@ div[data-chat-message-id] a {
 
     function applyTheme() {
         const rootStyle = document.documentElement.style;
-        const accent = state.themeAccent || detectGameAccent();
-        rootStyle.setProperty('--pa-accent', accent);
-        document.documentElement.classList.toggle('pa-no-glass', !state.themeGlass);
+        rootStyle.setProperty('--pa-accent', detectGameAccent());
     }
 
     function injectStyles() {
@@ -783,7 +782,8 @@ div[data-chat-message-id] a {
     }
     .pa-win-head b { flex: 1; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pa-win-head .pa-icon-btn { width: 22px; height: 22px; border-radius: 6px; font-size: 11px; }
-    .pa-win-body { padding: 8px; overflow: auto; }
+    .pa-win-body { flex: 1; min-height: 0; padding: 8px 8px 12px; overflow: auto; scrollbar-width: thin; }
+    .pa-win .pa-win-grip { border-bottom-right-radius: 11px; }
 
     /* ---------- zmieniacz zestawów ---------- */
     .pa-builds-grid { display: grid; gap: 6px; }
@@ -831,12 +831,12 @@ div[data-chat-message-id] a {
     /* ---------- berserker ---------- */
     .pa-berserk-icon {
       position: absolute;
-      width: 32px;
-      height: 32px;
-      border-radius: 9px;
-      border: 1px solid rgba(255,93,108,.65);
-      background: radial-gradient(circle at 50% 40%, rgba(255,93,108,.35), rgba(20,8,10,.92) 70%);
-      box-shadow: 0 0 12px rgba(255,60,60,.45), inset 0 1px 0 rgba(255,255,255,.12);
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 1px solid rgba(255,93,108,.7);
+      background: radial-gradient(circle at 50% 40%, rgba(255,93,108,.4), rgba(20,8,10,.95) 75%);
+      box-shadow: 0 0 7px rgba(255,60,60,.5);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -846,32 +846,32 @@ div[data-chat-message-id] a {
       transition: filter .15s ease, box-shadow .15s ease, transform .1s ease;
       touch-action: none;
     }
-    .pa-berserk-icon svg { width: 20px; height: 20px; pointer-events: none; }
-    .pa-berserk-icon:hover { transform: scale(1.06); }
+    .pa-berserk-icon svg { width: 12px; height: 12px; pointer-events: none; }
+    .pa-berserk-icon:hover { transform: scale(1.12); }
     .pa-berserk-icon.pa-off {
-      border-color: rgba(255,255,255,.18);
-      background: rgba(18,19,26,.9);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+      border-color: rgba(255,255,255,.2);
+      background: rgba(18,19,26,.92);
+      box-shadow: none;
       color: #8d93a5;
     }
     .pa-berserk-icon.pa-off::after {
       content: '';
       position: absolute;
-      width: 26px;
-      height: 2px;
-      background: rgba(255,93,108,.8);
+      width: 15px;
+      height: 1.5px;
+      background: rgba(255,93,108,.85);
       transform: rotate(-45deg);
       border-radius: 2px;
     }
     .pa-berserk-icon .pa-berserk-badge {
       position: absolute;
-      right: -4px;
-      bottom: -4px;
-      padding: 0 3px;
-      border-radius: 5px;
+      right: -5px;
+      bottom: -5px;
+      padding: 0 2px;
+      border-radius: 4px;
       background: #111;
       border: 1px solid var(--pa-border-strong);
-      font: 700 8.5px var(--pa-font);
+      font: 700 7px/1.2 var(--pa-font);
       color: var(--pa-muted);
       pointer-events: none;
     }
@@ -964,14 +964,14 @@ div[data-chat-message-id] a {
             name: 'Zmieniacz zestawów',
             tag: 'Ekwipunek',
             isNew: true,
-            desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy.',
+            desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy. Okienko można przesuwać i rozciągać za prawy dolny róg.',
             settings: () => `
               <div class="pa-row">
-                <label class="pa-field"><span>Liczba kolumn</span>
-                  <input type="number" min="1" max="6" data-pa-opt-num="buildsColumns"></label>
+                <label class="pa-field"><span>Liczba kolumn (0 = auto, dopasowane do szerokości)</span>
+                  <input type="number" min="0" max="6" data-pa-opt-num="buildsColumns"></label>
               </div>
               <label class="pa-check"><input type="checkbox" data-pa-opt="buildsCompact"> Tryb kompaktowy (same numery)</label>
-              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="builds-reset-pos">Przywróć pozycję okienka</button></div>`,
+              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="builds-reset-pos">Przywróć pozycję i rozmiar okienka</button></div>`,
         },
         {
             key: 'berserk',
@@ -980,7 +980,7 @@ div[data-chat-message-id] a {
             name: 'Berserker',
             tag: 'Walka',
             isNew: true,
-            desc: 'Ikonka obok ekwipunku, która jednym kliknięciem włącza lub wyłącza automatyczne atakowanie mobów (berserk z ustawień gry). W grupie przełącza berserk drużynowy. Ikonkę można przeciągnąć w inne miejsce.',
+            desc: 'Mała ikonka między tarczą a przyciskiem „Rozwiń” przy ekwipunku, która jednym kliknięciem włącza lub wyłącza automatyczne atakowanie mobów (berserk z ustawień gry). W grupie przełącza berserk drużynowy. Ikonkę można przeciągnąć w inne miejsce.',
             settings: () => `
               <div class="pa-split">
                 <div data-pa-bers-side="solo"></div>
@@ -1139,21 +1139,6 @@ div[data-chat-message-id] a {
           <div class="pa-grid">${ADDONS.map(renderAddonCard).join('')}</div>
           <div class="pa-empty-search" data-pa-empty>Brak dodatków pasujących do wyszukiwania.</div>
 
-          <div class="pa-section-title">Wygląd</div>
-          <div class="pa-card" data-pa-card="theme">
-            <div class="pa-card-main">
-              <div class="pa-card-icon">🎨</div>
-              <div class="pa-card-text">
-                <div class="pa-card-name">Motyw panelu</div>
-                <p class="pa-card-desc">Kolor akcentu okienek panelu. Tryb automatyczny dopasowuje się do kolorów aktualnego motywu interfejsu gry.</p>
-                <div class="pa-row" style="margin-top:8px">
-                  <label class="pa-check"><input type="checkbox" data-pa-theme-auto> Automatycznie z motywu gry</label>
-                  <input type="color" data-pa-theme-color style="width:42px;height:26px;border:1px solid var(--pa-border);border-radius:7px;background:none;cursor:pointer;padding:0 2px">
-                  <label class="pa-check"><input type="checkbox" data-pa-opt="themeGlass"> Półprzezroczyste tło (szkło)</label>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>`;
         document.body.appendChild(modal);
@@ -1334,16 +1319,6 @@ div[data-chat-message-id] a {
         setVal('[data-pa-huge-box-shadow]', state.hugeBoxShadow);
         setVal('[data-pa-huge-text-color]', state.hugeTextColor);
         applyHugeMessagePosition(root.querySelector('[data-pa-huge-message]'));
-
-        // motyw
-        const auto = modal.querySelector('[data-pa-theme-auto]');
-        const color = modal.querySelector('[data-pa-theme-color]');
-        if (auto) auto.checked = !state.themeAccent;
-        if (color) {
-            color.value = toHexColor(state.themeAccent || getComputedStyle(document.documentElement).getPropertyValue('--pa-accent').trim());
-            color.disabled = !state.themeAccent;
-            color.style.opacity = state.themeAccent ? '1' : '.45';
-        }
 
         // sekcje nowych dodatków
         berserk.renderSettings(modal);
@@ -1896,7 +1871,6 @@ div[data-chat-message-id] a {
                 saveSettings();
                 if (key.startsWith('titan')) titanHelper.setOptions(getTitanOptions());
                 if (key.startsWith('builds')) builds.render();
-                if (key === 'themeGlass') applyTheme();
                 return;
             }
 
@@ -1911,23 +1885,9 @@ div[data-chat-message-id] a {
                 return;
             }
 
-            if (input.matches('[data-pa-theme-auto]')) {
-                state.themeAccent = input.checked ? '' : toHexColor(getComputedStyle(document.documentElement).getPropertyValue('--pa-accent').trim());
-                saveSettings();
-                applyTheme();
-                syncUi(root);
-                return;
-            }
-
             if (input.matches('[data-pa-bers]')) {
                 berserk.onSettingsInput(input);
             }
-        });
-
-        modal.querySelector('[data-pa-theme-color]').addEventListener('input', (event) => {
-            state.themeAccent = event.target.value;
-            applyTheme();
-            saveSettings();
         });
 
         // --- notyfikator ---
@@ -3279,6 +3239,37 @@ function observeChatLinks() {
         });
     }
 
+    // uchwyt zmiany rozmiaru w prawym dolnym rogu okienka
+    function addResizeGrip(win, limits, onResize, onDone) {
+        const grip = document.createElement('div');
+        grip.className = 'pa-who-grip pa-win-grip';
+        grip.title = 'Przeciągnij, aby zmienić rozmiar';
+        win.appendChild(grip);
+        let drag = null;
+        grip.addEventListener('pointerdown', (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            drag = { x: event.clientX, y: event.clientY, w: win.offsetWidth, h: win.offsetHeight };
+            grip.setPointerCapture(event.pointerId);
+        });
+        grip.addEventListener('pointermove', (event) => {
+            if (!drag) return;
+            const rect = win.getBoundingClientRect();
+            const w = Math.round(Math.max(limits.minW, Math.min(window.innerWidth - rect.left - 2, drag.w + event.clientX - drag.x)));
+            const h = Math.round(Math.max(limits.minH, Math.min(window.innerHeight - rect.top - 2, drag.h + event.clientY - drag.y)));
+            onResize({ w, h });
+        });
+        const end = () => {
+            if (!drag) return;
+            drag = null;
+            onDone?.();
+        };
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+        return grip;
+    }
+
     // =================================================================
     //  BERSERKER – ikonka obok ekwipunku, przełącza auto-atak mobów
     //  Ustawienia gry: id 34 = berserk solo, id 35 = berserk w grupie
@@ -3287,7 +3278,6 @@ function observeChatLinks() {
         const ID_SOLO = 34;
         const ID_GROUP = 35;
         const CACHE_KEY = 'darksad-berserk-cache';
-        const DEFAULT_OFFSET = { left: -40, top: 6 };
 
         const settings = {};
         let hasParty = null;
@@ -3371,28 +3361,76 @@ function observeChatLinks() {
             settings[id][key] = Object.assign(settings[id][key] || {}, { v });
         }
 
-        function getAnchor() {
-            return document.querySelector('.right-column.main-column') ||
-                document.querySelector('.right-column') ||
-                document.querySelector('#panel');
+        const SIZE = 18;
+        let rozwinEl = null;
+
+        // przycisk „Rozwiń” w panelu statystyk (obok ekwipunku)
+        function findRozwin() {
+            if (rozwinEl && rozwinEl.isConnected && rozwinEl.getClientRects().length) return rozwinEl;
+            rozwinEl = null;
+            const scope = document.querySelector('.right-column') || document.querySelector('#panel') || document.body;
+            let snap;
+            try {
+                snap = document.evaluate(".//*[starts-with(normalize-space(text()),'Rozwi')]", scope, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            } catch (_) {
+                return null;
+            }
+            for (let i = 0; i < snap.snapshotLength; i++) {
+                const el = snap.snapshotItem(i);
+                if (el.closest(`#${ADDON_ID}-modal, .pa-win, #${ADDON_ID}`)) continue;
+                const btn = el.closest('button, .button, [class*="btn"]');
+                const target = (btn && btn.getBoundingClientRect().width < 200) ? btn : el;
+                if (target.getClientRects().length) {
+                    rozwinEl = target;
+                    break;
+                }
+            }
+            return rozwinEl;
+        }
+
+        // prawa krawędź ikonki tarczy (szukamy na lewo od „Rozwiń”)
+        function findShieldRight(r) {
+            const y = r.top + r.height / 2;
+            for (let x = r.left - 3; x > r.left - 80; x -= 2) {
+                const el = document.elementsFromPoint(x, y).find((e) => !icon || (e !== icon && !icon.contains(e)));
+                if (!el) continue;
+                const er = el.getBoundingClientRect();
+                if (er.width >= 10 && er.width <= 48 && er.height >= 10 && er.height <= 48 && er.right <= r.left) return er.right;
+            }
+            return null;
+        }
+
+        function getAnchorRect() {
+            const btn = findRozwin();
+            if (btn) return btn.getBoundingClientRect();
+            const col = document.querySelector('.right-column.main-column') || document.querySelector('.right-column') || document.querySelector('#panel');
+            return col ? col.getBoundingClientRect() : null;
         }
 
         function place() {
             if (!icon || icon.dataset.dragging === '1') return;
-            const anchor = getAnchor();
-            const off = state.berserkIconOffset || DEFAULT_OFFSET;
+            const btn = findRozwin();
+            const r = getAnchorRect();
+            const off = state.berserkRozwinOffset;
             let left;
             let top;
-            if (anchor) {
-                const r = anchor.getBoundingClientRect();
+            if (r && off) {
                 left = r.left + off.left;
                 top = r.top + off.top;
+            } else if (btn && r) {
+                // domyślnie: pośrodku między tarczą a „Rozwiń”
+                const shieldRight = findShieldRight(r);
+                left = shieldRight !== null ? (shieldRight + r.left) / 2 - SIZE / 2 : r.left - SIZE - 4;
+                top = r.top + r.height / 2 - SIZE / 2;
+            } else if (r) {
+                left = r.left - SIZE - 6;
+                top = r.top + 6;
             } else {
                 left = window.innerWidth - 300;
                 top = 8;
             }
-            left = Math.max(0, Math.min(window.innerWidth - 34, left));
-            top = Math.max(0, Math.min(window.innerHeight - 34, top));
+            left = Math.max(0, Math.min(window.innerWidth - SIZE, left));
+            top = Math.max(0, Math.min(window.innerHeight - SIZE, top));
             icon.style.left = `${Math.round(left)}px`;
             icon.style.top = `${Math.round(top)}px`;
         }
@@ -3431,8 +3469,8 @@ function observeChatLinks() {
                 drag.moved = true;
                 icon.dataset.dragging = '1';
                 tip.style.display = 'none';
-                icon.style.left = `${Math.max(0, Math.min(window.innerWidth - 34, drag.left + dx))}px`;
-                icon.style.top = `${Math.max(0, Math.min(window.innerHeight - 34, drag.top + dy))}px`;
+                icon.style.left = `${Math.max(0, Math.min(window.innerWidth - SIZE, drag.left + dx))}px`;
+                icon.style.top = `${Math.max(0, Math.min(window.innerHeight - SIZE, drag.top + dy))}px`;
             });
             icon.addEventListener('pointerup', () => {
                 if (!drag) return;
@@ -3440,10 +3478,9 @@ function observeChatLinks() {
                 drag = null;
                 delete icon.dataset.dragging;
                 if (wasMoved) {
-                    const anchor = getAnchor();
                     const r = icon.getBoundingClientRect();
-                    const a = anchor ? anchor.getBoundingClientRect() : { left: 0, top: 0 };
-                    state.berserkIconOffset = { left: Math.round(r.left - a.left), top: Math.round(r.top - a.top) };
+                    const a = getAnchorRect() || { left: 0, top: 0 };
+                    state.berserkRozwinOffset = { left: Math.round(r.left - a.left), top: Math.round(r.top - a.top) };
                     saveSettings();
                 } else {
                     toggle();
@@ -3498,7 +3535,7 @@ function observeChatLinks() {
         }
 
         function resetPosition() {
-            state.berserkIconOffset = null;
+            state.berserkRozwinOffset = null;
             saveSettings();
             place();
             showToast('Przywrócono pozycję ikonki berserka');
@@ -3753,6 +3790,12 @@ function observeChatLinks() {
                 saveSettings();
             });
 
+            addResizeGrip(win, { minW: 110, minH: 70 }, (size) => {
+                state.buildsSize = size;
+                win.style.width = `${size.w}px`;
+                win.style.height = `${size.h}px`;
+            }, () => saveSettings());
+
             win.querySelector('[data-pa-b-settings]').addEventListener('click', () => setMenuOpen(true, 'builds'));
             win.querySelector('[data-pa-b-close]').addEventListener('click', () => {
                 state.buildsEnabled = false;
@@ -3797,8 +3840,21 @@ function observeChatLinks() {
             const grid = win.querySelector('[data-pa-b-grid]');
 
             win.classList.toggle('pa-builds-compact', Boolean(state.buildsCompact));
-            grid.style.gridTemplateColumns = `repeat(${state.buildsCompact ? Math.max(state.buildsColumns, 3) : state.buildsColumns}, minmax(0, 1fr))`;
-            win.style.width = state.buildsCompact ? 'auto' : `${Math.max(170, state.buildsColumns * 118 + 18)}px`;
+            const cols = Number(state.buildsColumns) || 0;
+            const minCell = state.buildsCompact ? 34 : 105;
+            grid.style.gridTemplateColumns = cols
+                ? `repeat(${cols}, minmax(0, 1fr))`
+                : `repeat(auto-fill, minmax(${minCell}px, 1fr))`;
+            const size = state.buildsSize;
+            if (size) {
+                win.style.width = `${size.w}px`;
+                win.style.height = `${size.h}px`;
+            } else {
+                win.style.height = '';
+                win.style.width = state.buildsCompact
+                    ? (cols ? 'auto' : '190px')
+                    : `${cols ? Math.max(170, cols * 118 + 18) : 260}px`;
+            }
 
             if (!ids.length) {
                 grid.style.gridTemplateColumns = '1fr';
@@ -3845,8 +3901,10 @@ function observeChatLinks() {
 
         function resetPosition() {
             state.buildsPosition = null;
+            state.buildsSize = null;
             saveSettings();
             applyPosition();
+            render();
         }
 
         function init() {
