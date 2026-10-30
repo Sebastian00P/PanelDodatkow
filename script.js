@@ -49,7 +49,7 @@
         mmShowOthers: true,
         mmShowMobs: true,
         mmShowNpcs: true,
-        mmShowResp: false,
+        mmShowSpawns: false,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
     };
@@ -73,7 +73,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowResp',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns',
         'themeAccent', 'themeGlass',
     ];
 
@@ -91,7 +91,7 @@
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
-            state.mmShowResp = saved.mmShowResp === true;
+            state.mmShowSpawns = saved.mmShowSpawns === true;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
 
@@ -521,7 +521,7 @@ div[data-chat-message-id] a {
     .pa-modal {
       position: fixed;
       inset: 0;
-      z-index: 2147482000;
+      z-index: 2147483500;
       display: none;
       align-items: center;
       justify-content: center;
@@ -857,7 +857,7 @@ div[data-chat-message-id] a {
       color: var(--pa-text);
       user-select: none;
     }
-    .pa-mm.pa-mm-fixed { position: fixed; z-index: 380; }
+    .pa-mm.pa-mm-fixed { position: fixed; z-index: 2147483400; }
     .pa-mm.pa-visible { display: flex; gap: 8px; align-items: flex-start; }
     .pa-mm-col { flex: 0 0 auto; }
     .pa-mm-side {
@@ -919,13 +919,27 @@ div[data-chat-message-id] a {
     .pa-mm-obj.pa-mm-anim { transition: transform .45s linear; }
     .pa-mm-obj.pa-mm-gw { border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
     .pa-mm-obj.pa-mm-player { box-shadow: 0 0 0 1px rgba(0,0,0,.8); }
-    .pa-mm-obj.pa-mm-elite3 { box-shadow: 0 0 0 1px #000, 0 0 6px #ff9f1a; }
-    .pa-mm-obj.pa-mm-heros, .pa-mm-obj.pa-mm-titan, .pa-mm-obj.pa-mm-collosus { animation: pa-mm-glow 1s ease-in-out infinite; }
+    .pa-mm-obj.pa-mm-pulse {
+      overflow: visible;
+      box-shadow: 0 0 0 2px #000, 0 0 10px 2px currentColor;
+      animation: pa-mm-glow .9s ease-in-out infinite;
+    }
+    .pa-mm-obj.pa-mm-pulse::before, .pa-mm-obj.pa-mm-pulse::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      animation: pa-mm-ring 1.6s ease-out infinite;
+      pointer-events: none;
+    }
+    .pa-mm-obj.pa-mm-pulse::after { animation-delay: .8s; }
+    @keyframes pa-mm-ring { 0% { transform: scale(1); opacity: .95; } 100% { transform: scale(3.4); opacity: 0; } }
     .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid #c6ba35; box-shadow: none; }
     .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
     .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
-    @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 1px #000, 0 0 10px 2px currentColor; filter: brightness(1.5); } }
+    @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.6); } }
     .pa-mm-hero {
       position: absolute;
       z-index: 300;
@@ -1147,8 +1161,8 @@ div[data-chat-message-id] a {
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowMobs"> Pokazuj zwykłe moby</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowNpcs"> Pokazuj NPC</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowOthers"> Pokazuj innych graczy</label>
-              <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowResp"> Pokazuj respy herosów (kółka z obwódką)</label>
-              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III · <b style="color:#c6ba35">●</b> herosi · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
+              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button></div>`,
         },
         {
@@ -4279,11 +4293,56 @@ function observeChatLinks() {
 
         // przy wąskim oknie skracamy nick („…”), a poziom zostaje zawsze widoczny
         const LVL_RE = /^\(?\s*\d+\s*[a-ząęółśżźćń]{0,3}\s*\)?$/i;
+        const SPLIT_RE = /^([\s\S]*?\S)\s*(\(\s*\d+\s*[a-ząęółśżźćń]{0,3}\s*\))\s*$/i;
+
+        // nick i poziom w jednym tekście („dorsz potokowy (256m)”) – rozdzielamy na dwa elementy
+        function splitTextRows(list) {
+            const walker = document.createTreeWalker(list, NodeFilter.SHOW_TEXT);
+            const found = [];
+            let t;
+            while ((t = walker.nextNode())) {
+                if (t.parentElement?.closest('.pa-who-split')) continue;
+                if (SPLIT_RE.test(t.nodeValue || '')) found.push(t);
+            }
+            for (const textNode of found) {
+                const m = (textNode.nodeValue || '').match(SPLIT_RE);
+                const wrap = document.createElement('span');
+                wrap.className = 'pa-who-split';
+                wrap.style.cssText = 'display:flex;align-items:center;min-width:0;max-width:100%;pointer-events:none;';
+                const nick = document.createElement('span');
+                nick.textContent = m[1];
+                nick.style.cssText = 'flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;';
+                const lvl = document.createElement('span');
+                lvl.textContent = m[2];
+                lvl.style.cssText = 'flex:0 0 auto;margin-left:4px;white-space:nowrap;pointer-events:none;';
+                wrap.append(nick, lvl);
+                const parent = textNode.parentElement;
+                textNode.replaceWith(wrap);
+                // przodkowie aż do wiersza mogą się kurczyć
+                let a = parent;
+                while (a && a !== list) {
+                    a.style.minWidth = '0';
+                    a.style.overflow = 'hidden';
+                    if (a.parentElement === list) {
+                        a.style.display = 'flex';
+                        a.style.alignItems = 'center';
+                        a.style.paddingRight = '10px';
+                    } else {
+                        a.style.display = 'flex';
+                        a.style.alignItems = 'center';
+                        a.style.flex = '1 1 auto';
+                    }
+                    a = a.parentElement;
+                }
+            }
+        }
+
         function fixRows(win) {
             const list = win.querySelector('.player-list');
             if (!list) return;
+            splitTextRows(list);
             for (const el of list.querySelectorAll('*')) {
-                if (el.dataset.paLvl === '1' || el.children.length) continue;
+                if (el.dataset.paLvl === '1' || el.children.length || el.closest('.pa-who-split')) continue;
                 const txt = (el.textContent || '').trim();
                 if (!LVL_RE.test(txt)) continue;
                 el.dataset.paLvl = '1';
@@ -4419,15 +4478,15 @@ function observeChatLinks() {
         const COLORS = {
             hero: '#ff2a2a', other: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
             npc: '#ddff00', mob: '#4d6bff', elite: '#00ffe9', elite2: '#039689', elite3: '#ff9f1a',
-            heros: '#c6ba35', titan: '#809912', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
+            heros: '#ffd23f', herosEvent: '#ff4dd2', titan: '#b6ff1a', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
             resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4',
         };
         const LAYERS = {
             gw: 70, item: 80, resp: 90, respEvent: 90, npc: 110, mob: 110, elite: 120, elite2: 130, elite3: 130,
-            other: 140, friend: 140, clan: 140, ally: 140, enemy: 145, titan: 150, collosus: 150, heros: 160, marker: 200,
+            other: 140, friend: 140, clan: 140, ally: 140, enemy: 145, titan: 150, collosus: 150, heros: 160, herosEvent: 160, marker: 200,
         };
         const TYPE_NAMES = {
-            titan: 'tytan', collosus: 'kolos', heros: 'heros', elite3: 'elita III', elite2: 'elita II', elite: 'elita',
+            titan: 'tytan', collosus: 'kolos', heros: 'heros', herosEvent: 'heros eventowy', elite3: 'elita III', elite2: 'elita II', elite: 'elita',
             mob: 'potwór', npc: 'NPC', gw: 'przejście', item: 'przedmiot', resp: 'resp herosa', respEvent: 'resp (event)',
         };
         const GW_ICONS = ['mas/exit-ith.gif', 'mas/exit-ith1.gif', 'mas/exit.gif', 'mas/drzwi.gif', 'obj/drzwi.gif', 'mas/exit-h64c.gif'];
@@ -4498,6 +4557,7 @@ function observeChatLinks() {
             if (icon) out.icon = icon;
             set('quest', n.hasOnetimeQuest || n.hasDailyQuest || undefined);
             if (tpl?.isIconInvisible || n.isIconInvisible) out.invisible = true;
+            if (tpl?.isHeroFromEvent || n.isHeroFromEvent) out.event = true;
             return out;
         }
 
@@ -4624,6 +4684,22 @@ function observeChatLinks() {
             } catch (_) {}
         }
 
+        let lastOthersPull = 0;
+        function refreshOthersFromEngine() {
+            const now = Date.now();
+            if (now - lastOthersPull < 1000) return;
+            lastOthersPull = now;
+            try {
+                const E = PAGE.Engine;
+                if (typeof E?.others?.check !== 'function') return;
+                const list = E.others.check() || {};
+                for (const id in list) {
+                    const d = list[id]?.d || list[id];
+                    if (d && d.x !== undefined) others[String(d.id ?? id)] = Object.assign({ id: String(d.id ?? id) }, d);
+                }
+            } catch (_) {}
+        }
+
         // ---------- klasyfikacja ----------
         function npcKind(n) {
             if (n.invisible) return null;
@@ -4632,7 +4708,7 @@ function observeChatLinks() {
             if (type === 2 || type === 3) {
                 if (wt > 99) return 'titan';
                 if (wt >= 90) return 'collosus';
-                if (wt > 79) return 'heros';
+                if (wt > 79) return n.event ? 'herosEvent' : 'heros';
                 if (wt > 29) return 'elite3';
                 if (wt > 19) return 'elite2';
                 if (wt > 9) return 'elite';
@@ -4665,7 +4741,7 @@ function observeChatLinks() {
         function collectObjects() {
             const list = [];
             for (const g of gws) list.push(g);
-            if (state.mmShowResp) for (const s of spawns) list.push(s);
+            if (state.mmShowSpawns) for (const s of spawns) list.push(s);
             for (const id in npcs) {
                 const n = npcs[id];
                 if (n.x === undefined || n.y === undefined) continue;
@@ -4677,6 +4753,7 @@ function observeChatLinks() {
                 list.push({ id: `n${id}`, x: n.x, y: n.y, nick: n.nick || '', lvl: n.lvl, grp: n.grp, kind });
             }
             if (state.mmShowOthers) {
+                if (!Object.keys(others).length) refreshOthersFromEngine();
                 for (const id in others) {
                     const o = others[id];
                     if (o.x === undefined || o.y === undefined) continue;
@@ -4750,8 +4827,8 @@ function observeChatLinks() {
               </div>
               </div>
               <div class="pa-mm-side" data-mm-side></div>`;
-            (getStage() || document.body).appendChild(el);
-            el.classList.toggle('pa-mm-fixed', !getStage());
+            document.body.appendChild(el);
+            el.classList.add('pa-mm-fixed');
 
             tip = document.createElement('div');
             tip.className = 'pa-tip';
@@ -4975,21 +5052,17 @@ function observeChatLinks() {
 
         function position() {
             if (!el) return;
-            if (getStage()) {
-                el.style.left = `calc(50% - ${el.offsetWidth / 2}px)`;
-                el.style.top = `calc(50% - ${el.offsetHeight / 2}px)`;
-            } else {
-                const cr = getCanvasRect();
-                el.style.left = `${Math.round(cr.left + (cr.width - el.offsetWidth) / 2)}px`;
-                el.style.top = `${Math.round(cr.top + (cr.height - el.offsetHeight) / 2)}px`;
-            }
+            // zawsze na środku okna przeglądarki
+            el.style.left = `${Math.max(4, Math.round((window.innerWidth - el.offsetWidth) / 2))}px`;
+            el.style.top = `${Math.max(4, Math.round((window.innerHeight - el.offsetHeight) / 2))}px`;
         }
 
         function dotSize() {
             return Math.max(7, Math.ceil(scale * 1.15));
         }
 
-        const IMPORTANT = { titan: 1, collosus: 2, heros: 3, elite3: 4, elite2: 5 };
+        const IMPORTANT = { titan: 1, collosus: 2, herosEvent: 3, heros: 4, elite3: 5, elite2: 6 };
+        const PULSE = { titan: 1, collosus: 1, heros: 1, herosEvent: 1, elite3: 1 };
         let sideSig = '';
 
         function approach(x, y) {
@@ -5047,7 +5120,7 @@ function observeChatLinks() {
                 const key = o.id || `${o.kind}-${o.x}-${o.y}`;
                 seen.add(key);
                 let d = objEls.get(key);
-                const cls = `pa-mm-obj pa-mm-${o.kind}${o.player ? ' pa-mm-player' : ''}`;
+                const cls = `pa-mm-obj pa-mm-${o.kind}${o.player ? ' pa-mm-player' : ''}${PULSE[o.kind] ? ' pa-mm-pulse' : ''}`;
                 let fresh = false;
                 if (!d) {
                     d = document.createElement('div');
@@ -5056,13 +5129,15 @@ function observeChatLinks() {
                     fresh = true;
                 }
                 if (!d.className.startsWith(cls)) d.className = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '');
-                const w = o.spanX ? Math.max(s, o.spanX * scale) : s;
-                const hgt = o.spanY ? Math.max(s, o.spanY * scale) : s;
+                const big = PULSE[o.kind] ? Math.round(s * 1.5) : s;
+                const w = o.spanX ? Math.max(s, o.spanX * scale) : big;
+                const hgt = o.spanY ? Math.max(s, o.spanY * scale) : big;
                 d.style.width = `${w}px`;
                 d.style.height = `${hgt}px`;
                 d.style.marginLeft = `${(s - w) / 2}px`;
                 d.style.marginTop = `${(s - hgt) / 2}px`;
                 d.style.background = COLORS[o.kind] || '#fff';
+                d.style.color = COLORS[o.kind] || '#fff';
                 d.style.zIndex = String(LAYERS[o.kind] || 100);
                 d.style.transform = `translate(${(o.x * scale - off).toFixed(1)}px, ${(o.y * scale - off).toFixed(1)}px)`;
                 // płynny ruch dopiero po pierwszym ustawieniu pozycji
