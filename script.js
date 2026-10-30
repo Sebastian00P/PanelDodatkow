@@ -1003,6 +1003,7 @@ div[data-chat-message-id] a {
       pointer-events: none;
     }
     .pa-mm-obj.pa-mm-anim { transition: transform .45s linear; }
+    .pa-mm-obj.pa-mm-mob { box-shadow: 0 0 0 1px rgba(255,255,255,.85), 0 0 0 2px rgba(0,0,0,.5); }
     .pa-mm-obj.pa-mm-gw { border-radius: 3px; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
     .pa-mm-obj.pa-mm-player { box-shadow: 0 0 0 1px rgba(0,0,0,.8); }
     .pa-mm-obj.pa-mm-pulse {
