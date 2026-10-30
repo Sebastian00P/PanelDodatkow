@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.6';
+    const PANEL_VERSION = '4.5';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -54,7 +54,7 @@
         mmShowOthers: true,
         mmShowMobs: true,
         mmShowNpcs: true,
-        mmShowSpawns: false,
+        mmShowSpawns: true,
         mmChaseAttack: true,
         mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
@@ -98,7 +98,17 @@
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
-            state.mmShowSpawns = saved.mmShowSpawns === true;
+            state.mmShowSpawns = saved.mmShowSpawns !== false;
+            // jednorazowo: respy herosów stały się domyślnie włączone – włącz też u osób, które miały stary domyślny „wyłączony”
+            try {
+                if (!localStorage.getItem('pa_mm_spawns_default_v2')) {
+                    localStorage.setItem('pa_mm_spawns_default_v2', '1');
+                    if (saved.mmShowSpawns === false) {
+                        state.mmShowSpawns = true;
+                        setTimeout(saveSettings, 0);
+                    }
+                }
+            } catch (_) {}
             state.mmChaseAttack = saved.mmChaseAttack !== false;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
