@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '3.4';
+    const PANEL_VERSION = '3.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -894,23 +894,31 @@ div[data-chat-message-id] a {
       user-select: none;
     }
     .pa-mm.pa-mm-fixed { position: fixed; z-index: 2147483400; }
-    .pa-mm.pa-visible { display: flex; gap: 10px; align-items: flex-start; animation: pa-pop .16s ease-out; }
-    .pa-mm-col, .pa-mm-side {
+    /* mapa + lista graczy w jednym panelu, z rozmyciem tła */
+    .pa-mm.pa-visible {
+      display: flex;
+      align-items: stretch;
+      animation: pa-pop .16s ease-out;
       border: 1px solid var(--pa-border-strong);
       border-radius: 14px;
-      background: var(--pa-bg);
-      backdrop-filter: var(--pa-blur);
+      background: rgba(14, 16, 23, .72);
+      backdrop-filter: blur(14px) saturate(1.25);
+      -webkit-backdrop-filter: blur(14px) saturate(1.25);
       box-shadow: var(--pa-shadow), inset 0 1px 0 rgba(255,255,255,.06);
+      overflow: hidden;
     }
-    .pa-mm-col { flex: 0 0 auto; padding: 6px; }
+    .pa-mm-col { flex: 0 0 auto; padding: 6px; align-self: flex-start; }
+    .pa-mm-side { align-self: flex-start; box-sizing: border-box; }
     .pa-mm-side {
       display: none;
       flex-direction: column;
       gap: 6px;
-      width: 230px;
+      width: 240px;
       padding: 10px;
       overflow-y: auto;
       scrollbar-width: thin;
+      border-left: 1px solid var(--pa-border);
+      background: rgba(255,255,255,.02);
     }
     .pa-mm-side.pa-visible { display: flex; }
     .pa-mm-side-title { font: 700 10.5px var(--pa-font); letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); padding: 0 2px 6px; border-bottom: 1px solid var(--pa-border); margin-bottom: 2px; }
@@ -4580,23 +4588,41 @@ function observeChatLinks() {
         const SPLIT_RE = /^([\s\S]*?\S)\s*(\(\s*\d+\s*[a-ząęółśżźćń]{0,3}\s*\))\s*$/i;
 
         // Każdy wiersz: nick skracany („musztardowy ty…”), poziom zawsze na końcu, w jednej równej kolumnie.
+        function ownText(el) {
+            let t = '';
+            for (const n of el.childNodes) if (n.nodeType === 3) t += n.nodeValue;
+            return t;
+        }
+
         function fixRow(row) {
             if (row.dataset.paRowFix && row.dataset.paRowFix === row.textContent) return;
-            const leaves = [...row.querySelectorAll('*')].filter((e) => !e.children.length && !e.closest('.pa-who-nk, .pa-who-lv'));
-            let lvlEl = leaves.find((e) => LVL_RE.test((e.textContent || '').trim()) && e.style.display !== 'none') ||
-                leaves.find((e) => e.dataset.paLvlHidden === '1');
-            let nickEl = leaves
-                .filter((e) => e !== lvlEl && (e.textContent || '').trim().length >= 2 && !e.dataset.paLvlHidden)
-                .sort((x, y) => y.textContent.length - x.textContent.length)[0];
-            if (!nickEl) {
-                // nick jest już przerobiony – sprawdź, czy poziom się nie zmienił
-                const wrap = row.querySelector('.pa-who-nickwrap');
-                if (wrap && lvlEl) wrap.querySelector('.pa-who-lv').textContent = (lvlEl.textContent || '').trim();
+            const all = [row, ...row.querySelectorAll('*')].filter((e) => !e.closest('.pa-who-nk, .pa-who-lv'));
+            // element z poziomem: jego własny tekst to „(123x)”
+            const lvlEl = all.find((e) => e !== row && LVL_RE.test(ownText(e).trim()) && !e.querySelector('.pa-who-nk'));
+            // gotowy wiersz – tylko odśwież poziom
+            const done = row.querySelector('.pa-who-nickwrap');
+            if (done) {
+                if (lvlEl) done.querySelector('.pa-who-lv').textContent = ownText(lvlEl).trim();
                 row.dataset.paRowFix = row.textContent;
                 return;
             }
-            let nickText = (nickEl.textContent || '').trim();
-            let lvlText = lvlEl ? (lvlEl.textContent || '').trim() : '';
+            // element z nickiem: najdłuższy własny tekst (bez poziomu)
+            let nickEl = null;
+            let best = 0;
+            for (const e of all) {
+                if (e === lvlEl) continue;
+                const len = ownText(e).trim().length;
+                if (len > best) {
+                    best = len;
+                    nickEl = e;
+                }
+            }
+            if (!nickEl || best < 2) {
+                row.dataset.paRowFix = row.textContent;
+                return;
+            }
+            let nickText = ownText(nickEl).trim().replace(/\s+/g, ' ');
+            let lvlText = lvlEl ? ownText(lvlEl).trim() : '';
             if (!lvlEl) {
                 const m = nickText.match(SPLIT_RE);
                 if (!m) {
@@ -4605,9 +4631,11 @@ function observeChatLinks() {
                 }
                 nickText = m[1];
                 lvlText = m[2];
-            } else {
+            }
+            let lvlColor = '';
+            if (lvlEl) {
+                try { lvlColor = getComputedStyle(lvlEl).color; } catch (_) {}
                 lvlEl.style.display = 'none';
-                lvlEl.dataset.paLvlHidden = '1';
             }
 
             const nk = document.createElement('span');
@@ -4616,18 +4644,31 @@ function observeChatLinks() {
             const lv = document.createElement('span');
             lv.className = 'pa-who-lv';
             lv.textContent = lvlText;
-            nickEl.textContent = '';
-            nickEl.append(nk, lv);
-            nickEl.classList.add('pa-who-nickwrap');
+            if (lvlColor) lv.style.color = lvlColor;
+            // podmień własny tekst elementu nicka na nasze dwa kawałki
+            const texts = [...nickEl.childNodes].filter((n) => n.nodeType === 3 && n.nodeValue.trim());
+            texts[0].replaceWith(nk);
+            texts.slice(1).forEach((n) => n.remove());
+            nk.after(lv);
+            if (lvlEl && lvlEl.parentElement === nickEl) nickEl.appendChild(lvlEl);
 
-            // nick i jego przodkowie wypełniają wiersz i mogą się kurczyć
-            for (let a = nickEl; a && a !== row; a = a.parentElement) {
-                a.style.minWidth = '0';
-                a.style.maxWidth = '100%';
-                a.style.width = 'auto';
-                a.style.overflow = 'hidden';
-                a.style.flex = '1 1 auto';
-                a.style.textAlign = 'left';
+            if (nickEl !== row) {
+                nickEl.classList.add('pa-who-nickwrap');
+                for (let a = nickEl; a && a !== row; a = a.parentElement) {
+                    a.style.minWidth = '0';
+                    a.style.maxWidth = '100%';
+                    a.style.width = 'auto';
+                    a.style.overflow = 'hidden';
+                    a.style.flex = '1 1 auto';
+                    a.style.textAlign = 'left';
+                }
+            } else {
+                // tekst bezpośrednio w wierszu – owijamy go
+                const wrap = document.createElement('span');
+                wrap.className = 'pa-who-nickwrap';
+                wrap.style.cssText = 'flex:1 1 auto;min-width:0;overflow:hidden;pointer-events:none;';
+                nk.before(wrap);
+                wrap.append(nk, lv);
             }
             row.style.display = 'flex';
             row.style.alignItems = 'center';
@@ -5401,7 +5442,8 @@ function observeChatLinks() {
         }
 
         function dotSize() {
-            return Math.max(7, Math.ceil(scale * 1.15));
+            // na małych mapach kratka jest duża – kropki nie rosną ponad 14 px
+            return Math.max(7, Math.min(14, Math.ceil(scale * 1.15)));
         }
 
         const IMPORTANT = { titan: 1, collosus: 2, herosEvent: 3, heros: 4, elite3: 5, elite2: 6 };
@@ -5523,7 +5565,7 @@ function observeChatLinks() {
             if (sig === sideSig) return;
             sideSig = sig;
             side.classList.toggle('pa-visible', list.length > 0 || players.length > 0);
-            side.style.maxHeight = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
+            side.style.height = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
             const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p) => {
                 const on = chase && chase.id === p.id;
                 return `
