@@ -5580,7 +5580,7 @@ function observeChatLinks() {
             }
             chase = { id, nick: p.nick || '?', target: '', lastCmd: 0, lastAttack: 0, attacks: 0, mapId: town?.id };
             clearInterval(chaseTimer);
-            chaseTimer = setInterval(chaseStep, 250);
+            chaseTimer = setInterval(chaseStep, 50);
             chaseStep();
             showToast(state.mmChaseAttack ? `Gonię i atakuję: ${chase.nick}` : `Gonię: ${chase.nick}`);
         }
@@ -5613,8 +5613,10 @@ function observeChatLinks() {
                 chase.target = '';
                 if (state.mmChaseAttack) {
                     const t = Date.now();
-                    if (t - chase.lastAttack >= 1000) {
+                    // losowy odstęp 1–1,5 s między próbami ataku
+                    if (t - chase.lastAttack >= (chase.attackDelay || 0)) {
                         chase.lastAttack = t;
+                        chase.attackDelay = 1000 + Math.random() * 500;
                         net.send(`fight&a=attack&id=${chase.id}`);
                     }
                 }
