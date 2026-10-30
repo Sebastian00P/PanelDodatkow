@@ -42,6 +42,13 @@
         buildsBox: null,              // {w, h} – rozmiar okienka zestawów
         buildsCompact: false,
         buildsCache: {},              // heroId -> {list:[{id,name}], currentId}
+        mmEnabled: false,
+        mmSize: 100,                  // % domyślnego rozmiaru
+        mmOpacity: 100,
+        mmHotkey: '',
+        mmShowOthers: true,
+        mmShowMobs: true,
+        mmShowNpcs: true,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
     };
@@ -65,6 +72,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsCache',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs',
         'themeAccent', 'themeGlass',
     ];
 
@@ -79,6 +87,9 @@
             state.titanWindow = saved.titanWindow !== false;
             state.titanHighlightOwn = saved.titanHighlightOwn !== false;
             state.themeGlass = saved.themeGlass !== false;
+            state.mmShowOthers = saved.mmShowOthers !== false;
+            state.mmShowMobs = saved.mmShowMobs !== false;
+            state.mmShowNpcs = saved.mmShowNpcs !== false;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
 
@@ -829,12 +840,119 @@ div[data-chat-message-id] a {
     .pa-builds-status.pa-warn { color: #f5c451; }
     .pa-builds-empty { padding: 4px 2px; color: var(--pa-muted); font-size: 10.5px; line-height: 1.4; max-width: 200px; }
 
+    /* ---------- miniMap+ ---------- */
+    .pa-mm {
+      position: absolute;
+      display: none;
+      z-index: 13;
+      border: 3px solid #000;
+      border-radius: 5px;
+      border-bottom-left-radius: 20px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 10px 40px rgba(0,0,0,.6);
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+    .pa-mm.pa-mm-fixed { position: fixed; z-index: 380; }
+    .pa-mm.pa-visible { display: block; }
+    .pa-mm-map {
+      position: relative;
+      overflow: hidden;
+      background-color: #444;
+      background-repeat: no-repeat;
+      cursor: crosshair;
+    }
+    .pa-mm-objects { position: absolute; inset: 0; pointer-events: none; }
+    .pa-mm-obj {
+      position: absolute;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+      pointer-events: none;
+    }
+    .pa-mm-obj.pa-mm-gw { border-radius: 2px; box-shadow: none; }
+    .pa-mm-obj.pa-mm-player { box-shadow: 0 0 0 1px rgba(0,0,0,.7); }
+    .pa-mm-obj.pa-mm-heros, .pa-mm-obj.pa-mm-titan, .pa-mm-obj.pa-mm-collosus { animation: pa-mm-flash 1s steps(2) infinite; }
+    .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid #c6ba35; box-shadow: none; }
+    .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
+    .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 2px; }
+    @keyframes pa-mm-flash { 50% { filter: invert(1); } }
+    .pa-mm-hero {
+      position: absolute;
+      z-index: 300;
+      background: #ff1f1f;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.6);
+      pointer-events: none;
+      transition: left .12s linear, top .12s linear;
+    }
+    .pa-mm-view {
+      position: absolute;
+      z-index: 250;
+      border: 1px solid #ffff00;
+      box-sizing: border-box;
+      pointer-events: none;
+      transition: left .12s linear, top .12s linear;
+    }
+    .pa-mm-coords {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      z-index: 400;
+      padding: 2px 3px;
+      font: 700 12px Arial, sans-serif;
+      color: #fff;
+      background: rgba(0,0,0,.5);
+      pointer-events: none;
+    }
+    .pa-mm-msg { display: none; position: absolute; inset: 0; padding: 30px 16px; text-align: center; color: #ddd; font-size: 12px; }
+    .pa-mm-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 19px;
+      padding: 0 4px 0 8px;
+      border-top: 1px solid #000;
+      background: #ccc;
+      color: #232323;
+      font: 11px/19px Arial, sans-serif;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .pa-mm-brand { font-weight: 700; }
+    .pa-mm-sep { color: #777; }
+    .pa-mm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #444; }
+    .pa-mm-bar label { display: flex; align-items: center; gap: 4px; }
+    .pa-mm-bar input {
+      width: 130px;
+      height: 14px;
+      padding: 0 3px;
+      border: 1px solid #888;
+      border-radius: 2px;
+      background: #fff;
+      color: #111;
+      font: 11px Arial, sans-serif;
+      outline: none;
+    }
+    .pa-mm-gear {
+      width: 16px;
+      height: 15px;
+      padding: 0;
+      border: 0;
+      border-radius: 4px;
+      background: rgba(20,20,20,.8);
+      color: #ddd;
+      font-size: 10px;
+      line-height: 15px;
+      cursor: pointer;
+    }
+    .pa-mm-hidden-game { opacity: 0 !important; pointer-events: none !important; }
+
     /* ---------- berserker ---------- */
     .pa-berserk-icon {
       position: absolute;
-      width: 18px;
-      height: 18px;
-      border-radius: 5px;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
       border: 1px solid rgba(255,93,108,.7);
       background: radial-gradient(circle at 50% 40%, rgba(255,93,108,.4), rgba(20,8,10,.95) 75%);
       box-shadow: 0 0 7px rgba(255,60,60,.5);
@@ -847,7 +965,7 @@ div[data-chat-message-id] a {
       transition: filter .15s ease, box-shadow .15s ease, transform .1s ease;
       touch-action: none;
     }
-    .pa-berserk-icon svg { width: 12px; height: 12px; pointer-events: none; }
+    .pa-berserk-icon svg { width: 16px; height: 16px; pointer-events: none; }
     .pa-berserk-icon:hover { transform: scale(1.12); }
     .pa-berserk-icon.pa-off {
       border-color: rgba(255,255,255,.2);
@@ -858,8 +976,8 @@ div[data-chat-message-id] a {
     .pa-berserk-icon.pa-off::after {
       content: '';
       position: absolute;
-      width: 15px;
-      height: 1.5px;
+      width: 20px;
+      height: 2px;
       background: rgba(255,93,108,.85);
       transform: rotate(-45deg);
       border-radius: 2px;
@@ -872,7 +990,7 @@ div[data-chat-message-id] a {
       border-radius: 4px;
       background: #111;
       border: 1px solid var(--pa-border-strong);
-      font: 700 7px/1.2 var(--pa-font);
+      font: 700 8px/1.2 var(--pa-font);
       color: var(--pa-muted);
       pointer-events: none;
     }
@@ -916,7 +1034,7 @@ div[data-chat-message-id] a {
 
         style.textContent += OLD_CSS_TAIL + `
 
-    /* ---------- odświeżone okienka (Titan Helper, Hide and seek) ---------- */
+    /* ---------- odświeżone okienka (Titan Helper) / Hide and seek ---------- */
     .pa-thp-window {
       background: var(--pa-bg) !important;
       backdrop-filter: var(--pa-blur);
@@ -933,32 +1051,8 @@ div[data-chat-message-id] a {
       padding: 7px 10px !important;
     }
     #pilnowacz-box {
-      background: var(--pa-bg) !important;
-      backdrop-filter: var(--pa-blur) !important;
-      border: 1px solid var(--pa-border-strong) !important;
-      border-radius: 12px !important;
-      box-shadow: var(--pa-shadow) !important;
-      font-family: var(--pa-font) !important;
-      color: var(--pa-text) !important;
-      padding: 3px 7px !important;
-      font-size: 10px !important;
-      line-height: 1.25 !important;
-      min-width: 0 !important;
-      border-radius: 7px !important;
-      display: grid;
-      grid-template-columns: auto auto;
-      column-gap: 10px;
-      row-gap: 0;
-    }
-    #pilnowacz-box .pa-hs-row { display: flex; justify-content: space-between; gap: 5px; white-space: nowrap; }
-    #pilnowacz-box .pa-hs-row span { color: var(--pa-muted); }
-    #pilnowacz-box .pilnowacz-count { font-size: 10.5px; cursor: pointer; }
-    #pilnowacz-tooltip {
-      background: var(--pa-bg-solid) !important;
-      border: 1px solid var(--pa-border-strong) !important;
-      color: var(--pa-text) !important;
-      box-shadow: var(--pa-shadow) !important;
-      font-family: var(--pa-font) !important;
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
     }
   `;
 
@@ -969,6 +1063,26 @@ div[data-chat-message-id] a {
     //  KATALOG DODATKÓW (karty w modalu)
     // ------------------------------------------------------------------
     const ADDONS = [
+        {
+            key: 'minimap',
+            stateKey: 'mmEnabled',
+            icon: '🗺️',
+            name: 'miniMap+',
+            tag: 'Interfejs',
+            isNew: true,
+            desc: 'Nowa mapa podręczna zamiast tej z gry: cała lokacja z zaznaczonymi mobami, elitami, herosami, NPC, graczami (sojusznicy, wrogowie) i przejściami, prostokąt widoku, współrzędne pod kursorem i wyszukiwarka (nazwa albo „x,y”). Kliknięcie na mapie = idź tam. Otwiera się zamiast mapy podręcznej z gry.',
+            settings: () => `
+              <div class="pa-row">
+                <label class="pa-field"><span>Rozmiar (%)</span><input type="number" min="40" max="150" step="5" data-pa-opt-num="mmSize"></label>
+                <label class="pa-field"><span>Krycie (%)</span><input type="number" min="30" max="100" step="5" data-pa-opt-num="mmOpacity"></label>
+                <label class="pa-field"><span>Własny klawisz (opcjonalnie)</span><input type="text" maxlength="1" placeholder="np. n" data-pa-mm-hotkey></label>
+              </div>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowMobs"> Pokazuj zwykłe moby</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowNpcs"> Pokazuj NPC</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowOthers"> Pokazuj innych graczy</label>
+              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#4d6bff">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#c6ba35">●</b> herosi · <b style="color:#ddff00">●</b> NPC · <b style="color:#fff">●</b> gracze · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie · <b style="color:#2b3cff">■</b> przejścia</p>
+              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz minimapę</button></div>`,
+        },
         {
             key: 'builds',
             stateKey: 'buildsEnabled',
@@ -1327,6 +1441,9 @@ div[data-chat-message-id] a {
         setVal('[data-pa-huge-box-shadow]', state.hugeBoxShadow);
         setVal('[data-pa-huge-text-color]', state.hugeTextColor);
         applyHugeMessagePosition(root.querySelector('[data-pa-huge-message]'));
+
+        const mmKey = modal.querySelector('[data-pa-mm-hotkey]');
+        if (mmKey && document.activeElement !== mmKey) mmKey.value = state.mmHotkey || '';
 
         // sekcje nowych dodatków
         berserk.renderSettings(modal);
@@ -1753,6 +1870,10 @@ div[data-chat-message-id] a {
             whoResize.setEnabled(on);
             showToast(on ? 'Złap prawy dolny róg okna „Gracze na mapie”' : 'Zmiana rozmiaru okna graczy wyłączona');
         },
+        minimap(on) {
+            miniMap.setEnabled(on);
+            showToast(on ? 'miniMap+ włączona – otwórz mapę podręczną w grze' : 'miniMap+ wyłączona');
+        },
         builds(on) {
             builds.setEnabled(on);
             showToast(on ? 'Zmieniacz zestawów włączony' : 'Zmieniacz zestawów wyłączony');
@@ -1851,6 +1972,10 @@ div[data-chat-message-id] a {
                 if (name === 'builds-reset-pos') builds.resetPosition();
                 if (name === 'berserk-reset-pos') berserk.resetPosition();
                 if (name === 'who-reset') whoResize.reset();
+                if (name === 'mm-open') {
+                    setMenuOpen(false);
+                    miniMap.toggle(true);
+                }
                 syncUi(root);
                 return;
             }
@@ -1879,6 +2004,7 @@ div[data-chat-message-id] a {
                 saveSettings();
                 if (key.startsWith('titan')) titanHelper.setOptions(getTitanOptions());
                 if (key.startsWith('builds')) builds.render();
+                if (key.startsWith('mm')) miniMap.refresh();
                 return;
             }
 
@@ -1890,6 +2016,14 @@ div[data-chat-message-id] a {
                 input.value = state[key];
                 saveSettings();
                 if (key.startsWith('builds')) builds.render();
+                if (key.startsWith('mm')) miniMap.refresh();
+                return;
+            }
+
+            if (input.matches('[data-pa-mm-hotkey]')) {
+                state.mmHotkey = (input.value || '').trim().slice(0, 1).toLowerCase();
+                input.value = state.mmHotkey;
+                saveSettings();
                 return;
             }
 
@@ -2220,7 +2354,16 @@ div[data-chat-message-id] a {
                 `${p.n} (${p.l}${p.p})`
             ).join("|");
 
-            html += `<div class="pa-hs-row"><span>${label}</span><b class="pilnowacz-count" data-tooltip="${tooltipData}" style="color:${color}">${count}</b></div>`;
+            html += `
+            <div>
+                🔹 ${label}:
+                <b class="pilnowacz-count"
+                   data-tooltip="${tooltipData}"
+                   style="color:${color}; cursor:pointer;">
+                   ${count}
+                </b>
+            </div>
+        `;
         }
 
         box.innerHTML = html;
@@ -3112,14 +3255,22 @@ function observeChatLinks() {
     // =================================================================
     const net = (function () {
         const handlers = {};
+        const anyHandlers = [];
         let hooked = false;
 
         function on(key, fn) {
             (handlers[key] = handlers[key] || []).push(fn);
         }
 
+        function onAny(fn) {
+            anyHandlers.push(fn);
+        }
+
         function dispatch(data) {
             if (!data || typeof data !== 'object') return;
+            for (const fn of anyHandlers) {
+                try { fn(data); } catch (error) { console.warn('[darksad-addon] handler *', error); }
+            }
             for (const key in handlers) {
                 if (data[key] === undefined) continue;
                 for (const fn of handlers[key]) {
@@ -3196,7 +3347,7 @@ function observeChatLinks() {
             }
         }
 
-        return { on, start, send, heroId, heroLvl, isHooked: () => hooked };
+        return { on, onAny, start, send, heroId, heroLvl, isHooked: () => hooked };
     })();
 
     function escapeHtmlPa(v) {
@@ -3360,7 +3511,7 @@ function observeChatLinks() {
             settings[id][key] = Object.assign(settings[id][key] || {}, { v });
         }
 
-        const SIZE = 18;
+        const SIZE = 24;
         let rozwinEl = null;
 
         // przycisk „Rozwiń” w panelu statystyk (obok ekwipunku) – szukany w całej stronie
@@ -3709,7 +3860,7 @@ function observeChatLinks() {
                 fightActive = true;
                 fightEnded = false;
             }
-            if (f.endBattle) {
+            if (f.endBattle || f.end || f.battleEnd || String(f.move) === '-1') {
                 fightEnded = true;
                 onBattleOver();
             }
@@ -3722,9 +3873,15 @@ function observeChatLinks() {
         });
 
         function isFighting() {
-            if (fightActive && !fightEnded) return true;
+            if (fightActive && !fightEnded) {
+                try {
+                    if (PAGE.Engine?.battle?.endBattle === true) return false;
+                } catch (_) {}
+                return true;
+            }
             try {
                 const b = PAGE.Engine?.battle;
+                if (b && b.endBattle === true) return false;
                 if (b && b.show && b.endBattle === false) return true;
             } catch (_) {}
             return false;
@@ -3739,7 +3896,8 @@ function observeChatLinks() {
             if (pendingId === null) return;
             pendingAttempts = 0;
             lastPendingSendAt = 0;
-            setTimeout(tryFlush, 200);
+            tryFlush();
+            setTimeout(tryFlush, 0);
         }
 
         function tryFlush() {
@@ -3757,7 +3915,7 @@ function observeChatLinks() {
 
         function startPoll() {
             if (pollTimer) return;
-            pollTimer = setInterval(tryFlush, 700);
+            pollTimer = setInterval(tryFlush, 150);
         }
 
         function stopPoll() {
@@ -4146,6 +4304,677 @@ function observeChatLinks() {
         return { init, setEnabled, reset, renderSettings };
     })();
 
+    // =================================================================
+    //  miniMap+ – podręczna minimapa (zastępuje mapę podręczną z gry)
+    //  Dane zbierane cały czas z pakietów serwera, rysowane gdy otwarta.
+    // =================================================================
+    const miniMap = (function () {
+        const COLORS = {
+            hero: '#ff2a2a', other: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
+            npc: '#ddff00', mob: '#4d6bff', elite: '#00ffe9', elite2: '#039689', elite3: '#007500',
+            heros: '#c6ba35', titan: '#809912', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
+            resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4',
+        };
+        const LAYERS = {
+            gw: 70, item: 80, resp: 90, respEvent: 90, npc: 110, mob: 110, elite: 120, elite2: 130, elite3: 130,
+            other: 140, friend: 140, clan: 140, ally: 140, enemy: 145, titan: 150, collosus: 150, heros: 160, marker: 200,
+        };
+        const TYPE_NAMES = {
+            titan: 'tytan', collosus: 'kolos', heros: 'heros', elite3: 'elita III', elite2: 'elita II', elite: 'elita',
+            mob: 'potwór', npc: 'NPC', gw: 'przejście', item: 'przedmiot', resp: 'resp herosa', respEvent: 'resp (event)',
+        };
+        const GW_ICONS = ['mas/exit-ith.gif', 'mas/exit-ith1.gif', 'mas/exit.gif', 'mas/drzwi.gif', 'obj/drzwi.gif', 'mas/exit-h64c.gif'];
+        const REL = { NONE: 1, FRIEND: 2, ENEMY: 3, CLAN: 4, CLAN_ALLY: 5, CLAN_ENEMY: 6, FRACTION_ALLY: 7, FRACTION_ENEMY: 8 };
+
+        let town = null;
+        const tpls = {};
+        const icons = {};
+        const npcs = {};
+        const others = {};
+        let gws = [];
+        let spawns = [];
+
+        let enabled = false;
+        let isOpen = false;
+        let el = null;
+        let tip = null;
+        let scale = 0;          // px na 1 kratkę
+        let mapW = 0;
+        let mapH = 0;
+        let renderQueued = false;
+        let tickTimer = null;
+        let watchTimer = null;
+        let hiddenGameWin = null;
+        let search = { text: '', coords: null };
+        let hoverTile = null;
+
+        // ---------- zbieranie danych ----------
+        function resetTown(t) {
+            town = {
+                id: t.id,
+                name: t.name || '',
+                file: t.file || '',
+                w: Number(t.x) || 0,
+                h: Number(t.y) || 0,
+                offset: t.backgroundOffset || null,
+                visibility: Number(t.visibility) || 0,
+            };
+            for (const k in npcs) delete npcs[k];
+            for (const k in others) delete others[k];
+            gws = [];
+            spawns = [];
+            if (isOpen) buildMap();
+        }
+
+        function npcLevel(tpl, n) {
+            if (tpl && tpl.elasticLevelFactor !== undefined) {
+                return Math.max(1, Math.min(300, net.heroLvl() + Number(tpl.elasticLevelFactor)));
+            }
+            return Number(tpl?.level ?? n.lvl ?? 0);
+        }
+
+        function assembleNpc(n) {
+            const tpl = tpls[n.tpl] || null;
+            const out = { id: String(n.id) };
+            const set = (k, v) => { if (v !== undefined && v !== null) out[k] = v; };
+            set('x', n.x);
+            set('y', n.y);
+            set('nick', n.nick ?? tpl?.nick);
+            set('type', tpl?.type ?? n.type);
+            set('wt', tpl?.warrior_type ?? n.wt);
+            if (tpl || n.lvl !== undefined) out.lvl = npcLevel(tpl, n);
+            set('grp', n.group ?? n.grp);
+            let icon = '';
+            if (n.icon && typeof n.icon === 'object') icon = n.icon.special ?? icons[n.icon.id]?.icon ?? '';
+            else if (typeof n.icon === 'string') icon = n.icon;
+            else if (tpl?.icon) icon = tpl.icon;
+            if (icon) out.icon = icon;
+            set('quest', n.hasOnetimeQuest || n.hasDailyQuest || undefined);
+            return out;
+        }
+
+        net.onAny((data) => {
+            let changed = false;
+            if (data.town && typeof data.town === 'object') {
+                if (data.town.file !== undefined) {
+                    resetTown(data.town);
+                } else if (town && data.town.visibility !== undefined) {
+                    town.visibility = Number(data.town.visibility) || 0;
+                }
+                changed = true;
+            }
+            if (Array.isArray(data.icons)) for (const i of data.icons) icons[i.id] = i;
+            if (Array.isArray(data.npc_tpls)) for (const t of data.npc_tpls) tpls[t.id] = t;
+            if (Array.isArray(data.npcs)) {
+                for (const n of data.npcs) {
+                    const a = assembleNpc(n);
+                    npcs[a.id] = Object.assign(npcs[a.id] || {}, a);
+                }
+                changed = true;
+            } else if (data.npcs && typeof data.npcs === 'object') {
+                for (const id in data.npcs) {
+                    const n = Object.assign({ id }, data.npcs[id]);
+                    if (n.del) delete npcs[id];
+                    else npcs[id] = Object.assign(npcs[id] || {}, assembleNpc(n));
+                }
+                changed = true;
+            }
+            if (Array.isArray(data.npcs_del)) {
+                for (const n of data.npcs_del) delete npcs[String(n.id)];
+                changed = true;
+            }
+            if (data.other && typeof data.other === 'object') {
+                for (const id in data.other) {
+                    const o = data.other[id];
+                    if (!o) continue;
+                    if (o.del) delete others[id];
+                    else if (others[id]) Object.assign(others[id], o);
+                    else if (o.nick !== undefined) others[id] = Object.assign({ id }, o);
+                }
+                changed = true;
+            }
+            if (Array.isArray(data.gw2) && data.townname) {
+                gws = [];
+                const g = data.gw2;
+                for (let i = 0; i + 2 < g.length; i += 5) {
+                    let name = data.townname[g[i]] || 'Przejście';
+                    if (Number(g[i + 3]) === 2) name += ' (wymaga klucza)';
+                    if (g[i + 4]) {
+                        const v = parseInt(g[i + 4], 10);
+                        const min = v & 65535;
+                        const max = (v >> 16) & 65535;
+                        name += ` (${min ? `od ${min}` : ''}${max && max < 1000 ? ` do ${max}` : ''} lvl)`;
+                    }
+                    gws.push({ id: `gw-${i}`, x: Number(g[i + 1]), y: Number(g[i + 2]), nick: name, kind: 'gw' });
+                }
+                changed = true;
+            }
+            const hh = data.handheld_minimap;
+            if (hh && Array.isArray(hh.hero_localizations)) {
+                spawns = [];
+                for (const t of hh.hero_localizations) {
+                    const event = t.kind === 'Event';
+                    for (const pos of t.pos || []) {
+                        spawns.push({ x: pos[0], y: pos[1], nick: `Resp ${event ? 'eventowy ' : ''}${t.name}${t.lvl ? ` (${t.lvl} lvl)` : ''}`, kind: event ? 'respEvent' : 'resp' });
+                    }
+                }
+                changed = true;
+            }
+            if (changed) queueRender();
+        });
+
+        // gdy panel włączono po starcie gry – próbujemy pobrać stan z silnika
+        function bootstrapFromEngine() {
+            const E = PAGE.Engine;
+            if (!E) return;
+            try {
+                const d = E.map?.d;
+                if (d && (!town || !town.w)) {
+                    resetTown({ id: d.id, name: d.name, file: d.file || d.img || '', x: d.x || E.map.size?.x, y: d.y || E.map.size?.y, visibility: d.visibility, backgroundOffset: d.backgroundOffset });
+                }
+            } catch (_) {}
+            try {
+                if (!Object.keys(npcs).length && typeof E.npcs?.check === 'function') {
+                    const list = E.npcs.check() || {};
+                    for (const id in list) {
+                        const d = list[id]?.d || list[id];
+                        if (d && d.x !== undefined) npcs[String(d.id ?? id)] = { id: String(d.id ?? id), x: d.x, y: d.y, nick: d.nick, type: d.type, wt: d.wt, lvl: d.lvl, grp: d.grp, icon: d.icon };
+                    }
+                }
+            } catch (_) {}
+            try {
+                if (!Object.keys(others).length && typeof E.others?.check === 'function') {
+                    const list = E.others.check() || {};
+                    for (const id in list) {
+                        const d = list[id]?.d || list[id];
+                        if (d && d.x !== undefined) others[String(d.id ?? id)] = Object.assign({ id: String(d.id ?? id) }, d);
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // ---------- klasyfikacja ----------
+        function npcKind(n) {
+            const type = Number(n.type);
+            const wt = Number(n.wt) || 0;
+            if (type === 2 || type === 3) {
+                if (wt > 99) return 'titan';
+                if (wt >= 90) return 'collosus';
+                if (wt > 79) return 'heros';
+                if (wt > 29) return 'elite3';
+                if (wt > 19) return 'elite2';
+                if (wt > 9) return 'elite';
+                return 'mob';
+            }
+            if (type === 0 || type === 5 || type === 6 || !type) {
+                if (wt > 29 && wt < 80) return 'elite3';
+                if (wt > 9 && wt < 20) return 'elite';
+                if (n.icon && GW_ICONS.some((g) => String(n.icon).includes(g))) return 'gw';
+                return 'npc';
+            }
+            if (type === 7) return 'item';
+            return 'npc';
+        }
+
+        function otherKind(o) {
+            switch (Number(o.relation)) {
+                case REL.FRIEND: return 'friend';
+                case REL.CLAN: return 'clan';
+                case REL.CLAN_ALLY:
+                case REL.FRACTION_ALLY: return 'ally';
+                case REL.ENEMY:
+                case REL.CLAN_ENEMY:
+                case REL.FRACTION_ENEMY: return 'enemy';
+                default: return 'other';
+            }
+        }
+
+        function collectObjects() {
+            const list = [];
+            for (const g of gws) list.push(g);
+            for (const s of spawns) list.push(s);
+            for (const id in npcs) {
+                const n = npcs[id];
+                if (n.x === undefined || n.y === undefined) continue;
+                const kind = npcKind(n);
+                if (kind === 'mob' && !state.mmShowMobs) continue;
+                if (kind === 'npc' && !state.mmShowNpcs) continue;
+                list.push({ id: `n${id}`, x: n.x, y: n.y, nick: n.nick || '', lvl: n.lvl, grp: n.grp, kind });
+            }
+            if (state.mmShowOthers) {
+                for (const id in others) {
+                    const o = others[id];
+                    if (o.x === undefined || o.y === undefined) continue;
+                    list.push({
+                        id: `o${id}`, x: o.x, y: o.y, nick: o.nick || '', lvl: o.lvl, prof: o.prof,
+                        clan: typeof o.clan === 'object' ? o.clan?.name : '', kind: otherKind(o), player: true,
+                    });
+                }
+            }
+            if (search.coords) list.push({ id: 'marker', x: search.coords[0], y: search.coords[1], nick: `Koordy ${search.coords[0]},${search.coords[1]}`, kind: 'marker' });
+            return list;
+        }
+
+        function matchesSearch(obj) {
+            if (!search.text || obj.kind === 'marker') return true;
+            const q = search.text;
+            return `${obj.nick} ${obj.clan || ''} ${TYPE_NAMES[obj.kind] || ''}`.toLowerCase().includes(q);
+        }
+
+        // ---------- DOM ----------
+        function getStage() {
+            return document.querySelector('.game-window-positioner') || null;
+        }
+
+        function getCanvasRect() {
+            const c = document.querySelector('#GAME_CANVAS') || document.querySelector('.game-window-positioner canvas');
+            if (c) {
+                const r = c.getBoundingClientRect();
+                if (r.width > 50 && r.height > 50) return r;
+            }
+            return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+        }
+
+        function createEl() {
+            if (el) return;
+            el = document.createElement('div');
+            el.className = 'pa-mm';
+            el.innerHTML = `
+              <div class="pa-mm-map" data-mm-map>
+                <div class="pa-mm-objects" data-mm-objects></div>
+                <div class="pa-mm-view" data-mm-view></div>
+                <div class="pa-mm-hero" data-mm-hero></div>
+                <div class="pa-mm-coords" data-mm-coords></div>
+                <div class="pa-mm-msg" data-mm-msg></div>
+              </div>
+              <div class="pa-mm-bar">
+                <span class="pa-mm-brand">miniMap+</span><span class="pa-mm-sep">|</span>
+                <span class="pa-mm-name" data-mm-name></span>
+                <label>Szukaj: <input type="text" data-mm-search spellcheck="false"></label>
+                <button type="button" class="pa-mm-gear" data-mm-gear title="Ustawienia">⚙</button>
+              </div>`;
+            (getStage() || document.body).appendChild(el);
+            el.classList.toggle('pa-mm-fixed', !getStage());
+
+            tip = document.createElement('div');
+            tip.className = 'pa-tip';
+            document.body.appendChild(tip);
+
+            stopGameInput(el);
+            ['keydown', 'keyup', 'keypress'].forEach((type) => {
+                el.querySelector('[data-mm-search]').addEventListener(type, (e) => {
+                    if (e.key === 'Escape') {
+                        e.target.blur();
+                        return;
+                    }
+                    e.stopPropagation();
+                });
+            });
+            el.querySelector('[data-mm-search]').addEventListener('input', (e) => {
+                const v = e.target.value.trim();
+                const m = v.match(/^(\d+)\s*[,; ]\s*(\d+)$/);
+                search = m ? { text: '', coords: [Number(m[1]), Number(m[2])] } : { text: v.toLowerCase(), coords: null };
+                renderObjects();
+            });
+            el.querySelector('[data-mm-gear]').addEventListener('click', () => setMenuOpen(true, 'minimap'));
+
+            const map = el.querySelector('[data-mm-map]');
+            map.addEventListener('mousemove', onHover);
+            map.addEventListener('mouseleave', () => {
+                hoverTile = null;
+                tip.style.display = 'none';
+                updateCoords();
+            });
+            map.addEventListener('click', (e) => {
+                const t = tileFromEvent(e);
+                if (!t) return;
+                goTo(t.x, t.y);
+            });
+        }
+
+        function tileFromEvent(e) {
+            if (!scale) return null;
+            const r = el.querySelector('[data-mm-map]').getBoundingClientRect();
+            const x = Math.floor((e.clientX - r.left) / scale);
+            const y = Math.floor((e.clientY - r.top) / scale);
+            if (x < 0 || y < 0 || x >= mapW || y >= mapH) return null;
+            return { x, y };
+        }
+
+        function goTo(x, y) {
+            try {
+                if (PAGE.Engine?.hero?.autoGoTo) {
+                    PAGE.Engine.hero.autoGoTo({ x, y });
+                    return;
+                }
+                if (PAGE.hero?.searchPath) {
+                    PAGE.hero.mx = x;
+                    PAGE.hero.my = y;
+                    PAGE.hero.searchPath(x, y);
+                }
+            } catch (error) {
+                console.warn('[darksad-addon] miniMap goTo', error);
+            }
+        }
+
+        function onHover(e) {
+            const t = tileFromEvent(e);
+            hoverTile = t;
+            updateCoords();
+            if (!t) {
+                tip.style.display = 'none';
+                return;
+            }
+            const radius = scale < 6 ? 1 : 0;
+            const hits = collectObjects().filter((o) => Math.abs(o.x - t.x) <= radius && Math.abs(o.y - t.y) <= radius && matchesSearch(o));
+            if (!hits.length) {
+                tip.style.display = 'none';
+                return;
+            }
+            hits.sort((a, b) => (LAYERS[b.kind] || 0) - (LAYERS[a.kind] || 0));
+            tip.innerHTML = hits.slice(0, 6).map((o) => {
+                const type = o.player ? (o.clan ? `gracz · ${escapeHtmlPa(o.clan)}` : 'gracz') : (TYPE_NAMES[o.kind] || '');
+                const lvl = o.lvl ? ` · ${o.lvl}${o.prof || ''} lvl` : '';
+                const grp = o.grp ? ' · grupa' : '';
+                return `<div><b style="color:${COLORS[o.kind] || '#fff'}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${o.x},${o.y})</span></div>`;
+            }).join('<div style="height:4px"></div>');
+            tip.style.display = 'block';
+            const x = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + 14);
+            const y = Math.min(window.innerHeight - tip.offsetHeight - 8, e.clientY + 14);
+            tip.style.left = `${Math.max(4, x)}px`;
+            tip.style.top = `${Math.max(4, y)}px`;
+        }
+
+        function heroPos() {
+            const h = PAGE.Engine?.hero;
+            if (h) {
+                return {
+                    x: h.d?.x ?? h.x, y: h.d?.y ?? h.y,
+                    rx: Number.isFinite(h.rx) ? h.rx : h.d?.x, ry: Number.isFinite(h.ry) ? h.ry : h.d?.y,
+                };
+            }
+            const o = PAGE.hero;
+            return o ? { x: o.x, y: o.y, rx: o.x, ry: o.y } : null;
+        }
+
+        function updateCoords() {
+            if (!el) return;
+            const c = el.querySelector('[data-mm-coords]');
+            const h = heroPos();
+            if (hoverTile) c.textContent = `(${hoverTile.x},${hoverTile.y})`;
+            else c.textContent = h ? `(${h.x},${h.y})` : '';
+        }
+
+        function mapImageUrl() {
+            try {
+                const img = PAGE.Engine?.map?.img;
+                if (img && img.src && town && (!town.file || img.src.includes(town.file))) return img.src;
+            } catch (_) {}
+            if (!town || !town.file) return '';
+            if (/^https?:/.test(town.file)) return town.file;
+            const cfg = PAGE.CFG || {};
+            const base = cfg.a_mpath || cfg.mpath || '/obrazki/miasta/';
+            return base + town.file;
+        }
+
+        function buildMap() {
+            if (!el) return;
+            if (!town || !town.w) bootstrapFromEngine();
+            const msg = el.querySelector('[data-mm-msg]');
+            const map = el.querySelector('[data-mm-map]');
+            if (!town || !town.w || !town.h) {
+                msg.textContent = 'Brak danych mapy – przejdź na inną mapę albo odśwież grę (F5).';
+                msg.style.display = 'block';
+                map.style.width = '300px';
+                map.style.height = '120px';
+                scale = 0;
+                return;
+            }
+            msg.style.display = 'none';
+            mapW = town.w;
+            mapH = town.h;
+            const cr = getCanvasRect();
+            const maxBox = Math.min(700, cr.width - 30, cr.height - 50) * (state.mmSize / 100);
+            const box = Math.max(120, maxBox);
+            let w;
+            let h;
+            if (mapW >= mapH) {
+                w = box;
+                h = Math.max(1, Math.floor(mapH / mapW * box));
+            } else {
+                h = box;
+                w = Math.max(1, Math.floor(mapW / mapH * box));
+            }
+            scale = w / mapW;
+            w = Math.round(scale * mapW);
+            h = Math.round(scale * mapH);
+            map.style.width = `${w}px`;
+            map.style.height = `${h}px`;
+
+            const url = mapImageUrl();
+            map.style.backgroundImage = url ? `url("${url}")` : '';
+            if (town.offset) {
+                const img = new Image();
+                img.onload = () => {
+                    const k = scale / 32;
+                    map.style.backgroundSize = `${img.width * k}px ${img.height * k}px`;
+                    map.style.backgroundPosition = `${-town.offset.x * 32 * k}px ${-town.offset.y * 32 * k}px`;
+                };
+                img.src = url;
+            } else {
+                map.style.backgroundSize = '100% 100%';
+                map.style.backgroundPosition = '0 0';
+            }
+            el.querySelector('[data-mm-name]').textContent = town.name || '';
+            el.style.opacity = String(state.mmOpacity / 100);
+            position();
+            renderObjects();
+            tick();
+        }
+
+        function position() {
+            if (!el) return;
+            if (getStage()) {
+                el.style.left = `calc(50% - ${el.offsetWidth / 2}px)`;
+                el.style.top = `calc(50% - ${el.offsetHeight / 2}px)`;
+            } else {
+                const cr = getCanvasRect();
+                el.style.left = `${Math.round(cr.left + (cr.width - el.offsetWidth) / 2)}px`;
+                el.style.top = `${Math.round(cr.top + (cr.height - el.offsetHeight) / 2)}px`;
+            }
+        }
+
+        function dotSize() {
+            return Math.max(4, Math.ceil(scale));
+        }
+
+        function renderObjects() {
+            if (!el || !isOpen || !scale) return;
+            const layer = el.querySelector('[data-mm-objects]');
+            const s = dotSize();
+            const off = (s - scale) / 2;
+            const html = [];
+            for (const o of collectObjects()) {
+                if (!matchesSearch(o)) continue;
+                const left = (o.x * scale - off).toFixed(1);
+                const top = (o.y * scale - off).toFixed(1);
+                const color = COLORS[o.kind] || '#fff';
+                const z = LAYERS[o.kind] || 100;
+                let cls = `pa-mm-obj pa-mm-${o.kind}`;
+                if (o.player) cls += ' pa-mm-player';
+                html.push(`<div class="${cls}" style="left:${left}px;top:${top}px;width:${s}px;height:${s}px;background:${color};z-index:${z}"></div>`);
+            }
+            layer.innerHTML = html.join('');
+        }
+
+        function queueRender() {
+            if (!isOpen || renderQueued) return;
+            renderQueued = true;
+            requestAnimationFrame(() => {
+                renderQueued = false;
+                renderObjects();
+            });
+        }
+
+        function tick() {
+            if (!el || !isOpen || !scale) return;
+            const h = heroPos();
+            const hero = el.querySelector('[data-mm-hero]');
+            const view = el.querySelector('[data-mm-view]');
+            if (!h || h.x === undefined) {
+                hero.style.display = 'none';
+                view.style.display = 'none';
+                return;
+            }
+            const s = dotSize();
+            const off = (s - scale) / 2;
+            hero.style.display = 'block';
+            hero.style.width = `${s}px`;
+            hero.style.height = `${s}px`;
+            hero.style.left = `${h.rx * scale - off}px`;
+            hero.style.top = `${h.ry * scale - off}px`;
+
+            // prostokąt widoku (to, co widać na ekranie gry)
+            const cr = getCanvasRect();
+            const vw = Math.min(mapW, cr.width / 32);
+            const vh = Math.min(mapH, cr.height / 32);
+            const vx = Math.max(0, Math.min(mapW - vw, h.rx + 0.5 - vw / 2));
+            const vy = Math.max(0, Math.min(mapH - vh, h.ry + 0.5 - vh / 2));
+            view.style.display = 'block';
+            view.style.left = `${vx * scale}px`;
+            view.style.top = `${vy * scale}px`;
+            view.style.width = `${vw * scale}px`;
+            view.style.height = `${vh * scale}px`;
+            if (!hoverTile) updateCoords();
+        }
+
+        // ---------- okno mapy podręcznej z gry ----------
+        function findGameMiniMap() {
+            const wins = document.querySelectorAll('.c-window, .border-window, [class*="mini-map"], [class*="minimap"], [class*="handheld"]');
+            for (const w of wins) {
+                if (w.closest('.pa-mm') || w.closest(`#${ADDON_ID}-modal`)) continue;
+                const cls = String(w.className || '');
+                const title = w.querySelector('.header-label .text, .header-label')?.textContent || '';
+                if (/mini-?map|handheld/i.test(cls) || /mapa podr[eę]czna/i.test(title)) {
+                    return w.closest('.c-window, .border-window') || w;
+                }
+            }
+            return null;
+        }
+
+        function isShown(w) {
+            if (!w || !w.isConnected) return false;
+            const cs = getComputedStyle(w);
+            return cs.display !== 'none' && cs.visibility !== 'hidden' && w.getClientRects().length > 0;
+        }
+
+        function watchGame() {
+            const g = findGameMiniMap();
+            if (g && isShown(g) && g !== hiddenGameWin) {
+                hiddenGameWin = g;
+                g.classList.add('pa-mm-hidden-game');
+                if (!isOpen) open();
+            } else if (hiddenGameWin && !isShown(hiddenGameWin)) {
+                hiddenGameWin.classList.remove('pa-mm-hidden-game');
+                hiddenGameWin = null;
+                if (isOpen) close(false);
+            }
+        }
+
+        function closeGameWindow() {
+            const g = hiddenGameWin;
+            if (!g) return;
+            hiddenGameWin = null;
+            const btn = g.querySelector('.close-button, .close-button-corner-decor button, [class*="close"]');
+            if (btn) btn.click();
+            setTimeout(() => g.classList.remove('pa-mm-hidden-game'), 300);
+        }
+
+        // ---------- otwieranie ----------
+        function open() {
+            createEl();
+            isOpen = true;
+            el.classList.add('pa-visible');
+            buildMap();
+            clearInterval(tickTimer);
+            tickTimer = setInterval(tick, 120);
+        }
+
+        function close(alsoGame = true) {
+            isOpen = false;
+            clearInterval(tickTimer);
+            if (el) el.classList.remove('pa-visible');
+            if (tip) tip.style.display = 'none';
+            if (alsoGame) closeGameWindow();
+        }
+
+        function toggle(force) {
+            if (!enabled) return;
+            const next = force === undefined ? !isOpen : force;
+            if (next) open();
+            else close(true);
+        }
+
+        function onKey(e) {
+            if (!enabled) return;
+            const t = e.target;
+            if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return;
+            if (e.key === 'Escape' && isOpen) {
+                close(true);
+                return;
+            }
+            if (state.mmHotkey && !e.ctrlKey && !e.altKey && !e.metaKey && String(e.key).toLowerCase() === state.mmHotkey) {
+                toggle();
+            }
+        }
+
+        function setEnabled(on) {
+            enabled = on;
+            clearInterval(watchTimer);
+            if (on) {
+                watchTimer = setInterval(watchGame, 250);
+                window.addEventListener('resize', onResize);
+            } else {
+                close(true);
+                if (hiddenGameWin) hiddenGameWin.classList.remove('pa-mm-hidden-game');
+                hiddenGameWin = null;
+                window.removeEventListener('resize', onResize);
+                el?.remove();
+                tip?.remove();
+                el = null;
+                tip = null;
+            }
+        }
+
+        function onResize() {
+            if (isOpen) buildMap();
+        }
+
+        function refresh() {
+            if (isOpen) buildMap();
+        }
+
+        function init() {
+            document.addEventListener('keydown', onKey);
+            if (state.mmEnabled) setEnabled(true);
+            try {
+                PAGE.paMiniMapDebug = () => {
+                    const g = findGameMiniMap();
+                    const wins = [...document.querySelectorAll('.c-window, .border-window')].filter(isShown)
+                        .map((w) => ({ cls: String(w.className), title: w.querySelector('.header-label .text')?.textContent?.trim() }));
+                    const info = {
+                        town, npcs: Object.keys(npcs).length, others: Object.keys(others).length, gws: gws.length,
+                        mapImage: mapImageUrl(), gameMiniMap: g ? String(g.className) : null, visibleWindows: wins,
+                    };
+                    console.log('[darksad-addon] miniMap+', info);
+                    return info;
+                };
+            } catch (_) {}
+        }
+
+        return { init, setEnabled, toggle, refresh };
+    })();
+
 
     function init() {
         try {
@@ -4164,6 +4993,7 @@ function observeChatLinks() {
             berserk.init();
             builds.init();
             whoResize.init();
+            miniMap.init();
             syncUi(root);
 
             // motyw gry ładuje się chwilę po starcie – dopasuj kolor jeszcze raz
