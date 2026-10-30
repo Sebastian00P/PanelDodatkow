@@ -4665,7 +4665,13 @@ function observeChatLinks() {
             // gotowy wiersz – tylko odśwież poziom
             const done = row.querySelector('.pa-who-nickwrap');
             if (done) {
-                if (lvlEl) done.querySelector('.pa-who-lv').textContent = ownText(lvlEl).trim();
+                if (lvlEl) {
+                    const lv = done.querySelector('.pa-who-lv');
+                    const t = ownText(lvlEl).trim();
+                    if (lv && lv.textContent !== t) lv.textContent = t;
+                    // gra mogła wstawić poziom na nowo – chowamy jej kopię, nasza jest przy nicku
+                    if (lvlEl.style.display !== 'none') lvlEl.style.display = 'none';
+                }
                 row.dataset.paRowFix = row.textContent;
                 return;
             }
@@ -4757,8 +4763,25 @@ function observeChatLinks() {
             }
         }
 
+        // gra w czasie walki co chwilę przebudowuje wiersze (ikonka mieczy) – poprawiamy je od razu,
+        // zanim przeglądarka je narysuje, inaczej miecze skaczą na środek i wiersz mruga
+        let rowObserver = null;
+        let observedList = null;
+        function observeList(win) {
+            const list = win.querySelector('.player-list');
+            if (!list || list === observedList) return;
+            rowObserver?.disconnect();
+            observedList = list;
+            rowObserver = new MutationObserver(() => {
+                if (!enabled || !list.isConnected) return;
+                fixRows(win);
+            });
+            rowObserver.observe(list, { childList: true, subtree: true, characterData: true });
+        }
+
         function attach(win) {
             if (!win) return;
+            observeList(win);
             fixRows(win);
             if (win.querySelector(':scope > .pa-who-grip')) {
                 // okno istnieje – pilnujemy, by gra nie nadpisała rozmiaru
@@ -4812,6 +4835,9 @@ function observeChatLinks() {
         }
 
         function detach() {
+            rowObserver?.disconnect();
+            rowObserver = null;
+            observedList = null;
             const win = findWindow();
             if (!win) return;
             win.querySelector(':scope > .pa-who-grip')?.remove();
