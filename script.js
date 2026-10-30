@@ -342,14 +342,12 @@
   right: 12px;
   top: 120px;
   width: 230px;
-  height: 260px;
+  height: auto !important;
   min-width: 150px;
-  min-height: 70px;
   max-width: 90vw;
-  max-height: 90vh;
   display: none;
   flex-direction: column;
-  resize: both;
+  resize: horizontal;
   box-sizing: border-box;
   z-index: 2147483000;
   font-family: Arial, sans-serif;
@@ -379,10 +377,9 @@
 }
 
 .pa-thp-body {
-  flex: 1;
-  min-height: 0;
-  padding: 6px 8px 14px;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  padding: 6px 8px 10px;
+  overflow: visible;
 }
 
 .pa-thp-section {
@@ -612,8 +609,11 @@ div[data-chat-message-id] a {
     .pa-icon-btn.pa-on { color: var(--pa-accent); border-color: var(--pa-accent); }
 
     .pa-dialog-body {
+      flex: 1 1 auto;
+      min-height: 0;
       padding: 14px 16px 16px;
       overflow-y: auto;
+      overscroll-behavior: contain;
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.2) transparent;
     }
@@ -3370,7 +3370,8 @@ function observeChatLinks() {
                 winEl.style.right = 'auto';
             }
             if (pos.width) winEl.style.width = `${pos.width}px`;
-            if (pos.height) winEl.style.height = `${pos.height}px`;
+            // wysokość dopasowuje się do liczby efektów – zapisanej nie używamy
+            winEl.style.height = '';
         }
 
         function createWindow(onMove) {
@@ -3411,10 +3412,10 @@ function observeChatLinks() {
                 clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(() => {
                     const width = winEl.offsetWidth;
-                    const height = winEl.offsetHeight;
                     const pos = opts.position || {};
-                    if (pos.width === width && pos.height === height) return;
-                    opts.position = { ...pos, width, height };
+                    if (pos.width === width) return;
+                    opts.position = { ...pos, width };
+                    delete opts.position.height;
                     onMove?.(opts.position);
                 }, 400);
             }).observe(winEl);
@@ -3627,6 +3628,30 @@ function observeChatLinks() {
         ['mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'wheel', 'pointerdown'].forEach((type) => {
             el.addEventListener(type, (event) => event.stopPropagation());
         });
+    }
+
+    // kółko myszy w menu dodatków: gra przechwytuje „wheel”, więc przewijamy sami
+    function installMenuWheel() {
+        if (window.__paMenuWheel) return;
+        window.__paMenuWheel = true;
+        const scrollableFrom = (node, stop) => {
+            for (let el = node; el && el !== stop.parentElement; el = el.parentElement) {
+                if (el.nodeType !== 1) continue;
+                const oy = getComputedStyle(el).overflowY;
+                if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) return el;
+            }
+            return null;
+        };
+        window.addEventListener('wheel', (event) => {
+            const modal = getModal();
+            if (!modal || !modal.classList.contains('pa-open') || !modal.contains(event.target)) return;
+            event.stopPropagation();
+            event.preventDefault();
+            const box = scrollableFrom(event.target, modal);
+            if (!box) return;
+            const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? box.clientHeight : 1;
+            box.scrollTop += event.deltaY * unit;
+        }, { capture: true, passive: false });
     }
 
     // uchwyt zmiany rozmiaru w prawym dolnym rogu okienka
@@ -6069,6 +6094,7 @@ function observeChatLinks() {
             applyTheme();
 
             const root = createRoot();
+            installMenuWheel();
 
             bindEvents(root);
             makeNotifierDraggable(root);
