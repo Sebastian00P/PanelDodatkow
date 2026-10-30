@@ -1,5 +1,4 @@
 
-
 (function() {
     'use strict';
 
@@ -34,13 +33,13 @@
         titanPosition: null,
         // --- nowe ---
         berserkEnabled: false,
+        berserkFreePos: null,         // pozycja, gdy brak „Rozwiń”
         berserkRozwinOffset: null,    // {left, top} względem przycisku „Rozwiń”
         whoResizeEnabled: false,
         whoSize: null,                // {w, h}
         buildsEnabled: false,
         buildsPosition: null,
-        buildsColumns: 0,             // 0 = automatycznie wg szerokości
-        buildsSize: null,             // {w, h}
+        buildsBox: null,              // {w, h} – rozmiar okienka zestawów
         buildsCompact: false,
         buildsCache: {},              // heroId -> {list:[{id,name}], currentId}
         themeAccent: '',              // '' = auto (z motywu gry)
@@ -64,8 +63,8 @@
         'hugeMessageEnabled', 'hugeMessagePosition', 'hugeMyNick', 'hugeBgColor', 'hugeBorderColor',
         'hugeBoxShadow', 'hugeTextColor', 'hugeAutoCloseSeconds',
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
-        'berserkEnabled', 'berserkRozwinOffset', 'whoResizeEnabled', 'whoSize',
-        'buildsEnabled', 'buildsPosition', 'buildsColumns', 'buildsSize', 'buildsCompact', 'buildsCache',
+        'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
+        'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsCache',
         'themeAccent', 'themeGlass',
     ];
 
@@ -81,7 +80,6 @@
             state.titanHighlightOwn = saved.titanHighlightOwn !== false;
             state.themeGlass = saved.themeGlass !== false;
             state.hugeAutoCloseSeconds = Number(state.hugeAutoCloseSeconds || 0);
-            state.buildsColumns = Math.min(6, Math.max(0, Math.round(Number(state.buildsColumns)) || 0));
             if (!state.buildsCache || typeof state.buildsCache !== 'object') state.buildsCache = {};
 
             if (saved.collapsedGroups) {
@@ -780,33 +778,40 @@ div[data-chat-message-id] a {
     .pa-win .pa-win-grip { border-bottom-right-radius: 11px; }
 
     /* ---------- zmieniacz zestawów ---------- */
-    .pa-builds-grid { display: grid; gap: 6px; }
+    .pa-builds-win { min-width: 0; }
+    .pa-builds-win .pa-win-head { padding: 2px 3px 2px 7px; gap: 3px; }
+    .pa-builds-win .pa-win-head b { font-size: 9.5px; letter-spacing: .5px; }
+    .pa-builds-win .pa-win-head .pa-icon-btn { width: 16px; height: 16px; font-size: 9px; border-radius: 4px; }
+    .pa-builds-win .pa-win-body { padding: 6px; display: flex; flex-direction: column; }
+    .pa-builds-grid { display: grid; gap: 4px; --pa-bfs: 10px; }
     .pa-build {
       position: relative;
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: .45em;
       min-width: 0;
-      padding: 7px 9px;
+      height: 100%;
+      padding: 0 .5em 0 .25em;
       border: 1px solid var(--pa-border);
-      border-radius: 9px;
+      border-radius: 6px;
       background: var(--pa-surface);
       color: var(--pa-text);
-      font: 600 11.5px var(--pa-font);
+      font: 600 var(--pa-bfs) var(--pa-font);
       text-align: left;
       cursor: pointer;
+      overflow: hidden;
       transition: border-color .15s ease, background .15s ease;
     }
     .pa-build:hover { border-color: var(--pa-border-strong); background: var(--pa-surface-2); }
     .pa-build .pa-build-no {
       flex: 0 0 auto;
-      width: 20px;
-      height: 20px;
-      border-radius: 6px;
+      min-width: 1.45em;
+      height: 1.45em;
+      border-radius: 4px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 10.5px;
+      font-size: .9em;
       background: rgba(0,0,0,.35);
       color: var(--pa-muted);
     }
@@ -814,13 +819,15 @@ div[data-chat-message-id] a {
     .pa-build.pa-current { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 16%, transparent); }
     .pa-build.pa-current .pa-build-no { background: var(--pa-accent); color: #111; }
     .pa-build.pa-pending { border-color: #f5c451; animation: pa-pulse 1.1s ease-in-out infinite; }
-    .pa-build.pa-pending::after { content: '⏳'; font-size: 11px; }
-    @keyframes pa-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(245,196,81,.0); } 50% { box-shadow: 0 0 0 3px rgba(245,196,81,.28); } }
-    .pa-builds-compact .pa-build { padding: 5px 6px; justify-content: center; }
+    @keyframes pa-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(245,196,81,.0); } 50% { box-shadow: 0 0 0 2px rgba(245,196,81,.35); } }
+    .pa-builds-compact .pa-build { padding: 0; justify-content: center; }
+    .pa-builds-compact .pa-build .pa-build-no { background: none; min-width: 0; }
+    .pa-builds-compact .pa-build.pa-current .pa-build-no { background: none; color: var(--pa-accent); }
     .pa-builds-compact .pa-build .pa-build-name { display: none; }
-    .pa-builds-status { margin-top: 7px; font-size: 10.5px; color: var(--pa-muted); min-height: 13px; }
+    .pa-builds-status { margin-top: 4px; font-size: 9.5px; color: var(--pa-muted); }
+    .pa-builds-status:empty { display: none; }
     .pa-builds-status.pa-warn { color: #f5c451; }
-    .pa-builds-empty { padding: 6px 2px; color: var(--pa-muted); font-size: 11px; line-height: 1.45; max-width: 220px; }
+    .pa-builds-empty { padding: 4px 2px; color: var(--pa-muted); font-size: 10.5px; line-height: 1.4; max-width: 200px; }
 
     /* ---------- berserker ---------- */
     .pa-berserk-icon {
@@ -933,8 +940,19 @@ div[data-chat-message-id] a {
       box-shadow: var(--pa-shadow) !important;
       font-family: var(--pa-font) !important;
       color: var(--pa-text) !important;
-      line-height: 1.6;
+      padding: 3px 7px !important;
+      font-size: 10px !important;
+      line-height: 1.25 !important;
+      min-width: 0 !important;
+      border-radius: 7px !important;
+      display: grid;
+      grid-template-columns: auto auto;
+      column-gap: 10px;
+      row-gap: 0;
     }
+    #pilnowacz-box .pa-hs-row { display: flex; justify-content: space-between; gap: 5px; white-space: nowrap; }
+    #pilnowacz-box .pa-hs-row span { color: var(--pa-muted); }
+    #pilnowacz-box .pilnowacz-count { font-size: 10.5px; cursor: pointer; }
     #pilnowacz-tooltip {
       background: var(--pa-bg-solid) !important;
       border: 1px solid var(--pa-border-strong) !important;
@@ -960,10 +978,6 @@ div[data-chat-message-id] a {
             isNew: true,
             desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy. Okienko można przesuwać i rozciągać za prawy dolny róg.',
             settings: () => `
-              <div class="pa-row">
-                <label class="pa-field"><span>Liczba kolumn (0 = auto, dopasowane do szerokości)</span>
-                  <input type="number" min="0" max="6" data-pa-opt-num="buildsColumns"></label>
-              </div>
               <label class="pa-check"><input type="checkbox" data-pa-opt="buildsCompact"> Tryb kompaktowy (same numery)</label>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="builds-reset-pos">Przywróć pozycję i rozmiar okienka</button></div>`,
         },
@@ -2206,16 +2220,7 @@ div[data-chat-message-id] a {
                 `${p.n} (${p.l}${p.p})`
             ).join("|");
 
-            html += `
-            <div>
-                🔹 ${label}:
-                <b class="pilnowacz-count"
-                   data-tooltip="${tooltipData}"
-                   style="color:${color}; cursor:pointer;">
-                   ${count}
-                </b>
-            </div>
-        `;
+            html += `<div class="pa-hs-row"><span>${label}</span><b class="pilnowacz-count" data-tooltip="${tooltipData}" style="color:${color}">${count}</b></div>`;
         }
 
         box.innerHTML = html;
@@ -3358,27 +3363,47 @@ function observeChatLinks() {
         const SIZE = 18;
         let rozwinEl = null;
 
-        // przycisk „Rozwiń” w panelu statystyk (obok ekwipunku)
+        // przycisk „Rozwiń” w panelu statystyk (obok ekwipunku) – szukany w całej stronie
+        let lastSearch = 0;
         function findRozwin() {
             if (rozwinEl && rozwinEl.isConnected && rozwinEl.getClientRects().length) return rozwinEl;
             rozwinEl = null;
-            const scope = document.querySelector('.right-column') || document.querySelector('#panel') || document.body;
-            let snap;
-            try {
-                snap = document.evaluate(".//*[starts-with(normalize-space(text()),'Rozwi')]", scope, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-            } catch (_) {
-                return null;
-            }
-            for (let i = 0; i < snap.snapshotLength; i++) {
-                const el = snap.snapshotItem(i);
-                if (el.closest(`#${ADDON_ID}-modal, .pa-win, #${ADDON_ID}`)) continue;
-                const btn = el.closest('button, .button, [class*="btn"]');
-                const target = (btn && btn.getBoundingClientRect().width < 200) ? btn : el;
-                if (target.getClientRects().length) {
-                    rozwinEl = target;
-                    break;
+            const now = Date.now();
+            if (now - lastSearch < 1500) return null;
+            lastSearch = now;
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+                acceptNode(node) {
+                    return /^\s*rozwi[nń]/i.test(node.nodeValue || '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+                },
+            });
+            const candidates = [];
+            let node;
+            while ((node = walker.nextNode())) {
+                const el = node.parentElement;
+                if (!el || el.closest(`#${ADDON_ID}-modal, .pa-win, #${ADDON_ID}, .pa-tip`)) continue;
+                if (!el.getClientRects().length) continue;
+                // wspinamy się do „przycisku” (mały element), max 3 poziomy
+                let target = el;
+                for (let i = 0, cur = el; i < 3 && cur.parentElement; i++) {
+                    cur = cur.parentElement;
+                    const r = cur.getBoundingClientRect();
+                    if (r.width > 160 || r.height > 44) break;
+                    target = cur;
                 }
+                // czy w pobliżu jest nagłówek „Statystyki”
+                let score = 0;
+                for (let i = 0, cur = target; i < 6 && cur && cur !== document.body; i++, cur = cur.parentElement) {
+                    const cr = cur.getBoundingClientRect();
+                    if (cr.width > 450 || cr.height > 350) break;
+                    if (/statystyk/i.test(cur.textContent || '')) {
+                        score = 10 - i;
+                        break;
+                    }
+                }
+                candidates.push({ target, score });
             }
+            candidates.sort((x, y) => y.score - x.score);
+            rozwinEl = candidates[0]?.target || null;
             return rozwinEl;
         }
 
@@ -3396,14 +3421,11 @@ function observeChatLinks() {
 
         function getAnchorRect() {
             const btn = findRozwin();
-            if (btn) return btn.getBoundingClientRect();
-            const col = document.querySelector('.right-column.main-column') || document.querySelector('.right-column') || document.querySelector('#panel');
-            return col ? col.getBoundingClientRect() : null;
+            return btn ? btn.getBoundingClientRect() : null;
         }
 
         function place() {
             if (!icon || icon.dataset.dragging === '1') return;
-            const btn = findRozwin();
             const r = getAnchorRect();
             const off = state.berserkRozwinOffset;
             let left;
@@ -3411,23 +3433,36 @@ function observeChatLinks() {
             if (r && off) {
                 left = r.left + off.left;
                 top = r.top + off.top;
-            } else if (btn && r) {
+            } else if (r) {
                 // domyślnie: pośrodku między tarczą a „Rozwiń”
                 const shieldRight = findShieldRight(r);
                 left = shieldRight !== null ? (shieldRight + r.left) / 2 - SIZE / 2 : r.left - SIZE - 4;
                 top = r.top + r.height / 2 - SIZE / 2;
-            } else if (r) {
-                left = r.left - SIZE - 6;
-                top = r.top + 6;
+            } else if (state.berserkFreePos) {
+                left = state.berserkFreePos.left;
+                top = state.berserkFreePos.top;
             } else {
-                left = window.innerWidth - 300;
-                top = 8;
+                // nie znaleziono „Rozwiń” – obok przycisku panelu (lewy dół)
+                left = 56;
+                top = window.innerHeight - 40;
             }
             left = Math.max(0, Math.min(window.innerWidth - SIZE, left));
             top = Math.max(0, Math.min(window.innerHeight - SIZE, top));
             icon.style.left = `${Math.round(left)}px`;
             icon.style.top = `${Math.round(top)}px`;
         }
+
+        // diagnostyka w konsoli: paBerserkDebug()
+        try {
+            PAGE.paBerserkDebug = () => {
+                rozwinEl = null;
+                lastSearch = 0;
+                const el = findRozwin();
+                const info = el ? { tag: el.tagName, cls: el.className, text: el.textContent.trim(), rect: el.getBoundingClientRect().toJSON(), html: el.outerHTML.slice(0, 300), parent: el.parentElement?.outerHTML.slice(0, 600) } : 'Nie znaleziono przycisku „Rozwiń”';
+                console.log('[darksad-addon] berserk anchor:', info);
+                return info;
+            };
+        } catch (_) {}
 
         const SWORDS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg>';
 
@@ -3473,7 +3508,12 @@ function observeChatLinks() {
                 delete icon.dataset.dragging;
                 if (wasMoved) {
                     const r = icon.getBoundingClientRect();
-                    const a = getAnchorRect() || { left: 0, top: 0 };
+                    const a = getAnchorRect();
+                    if (!a) {
+                        state.berserkFreePos = { left: Math.round(r.left), top: Math.round(r.top) };
+                        saveSettings();
+                        return;
+                    }
                     state.berserkRozwinOffset = { left: Math.round(r.left - a.left), top: Math.round(r.top - a.top) };
                     saveSettings();
                 } else {
@@ -3530,6 +3570,7 @@ function observeChatLinks() {
 
         function resetPosition() {
             state.berserkRozwinOffset = null;
+            state.berserkFreePos = null;
             saveSettings();
             place();
             showToast('Przywrócono pozycję ikonki berserka');
@@ -3784,11 +3825,16 @@ function observeChatLinks() {
                 saveSettings();
             });
 
-            addResizeGrip(win, { minW: 110, minH: 70 }, (size) => {
-                state.buildsSize = size;
+            addResizeGrip(win, { minW: 70, minH: 46 }, (size) => {
+                state.buildsBox = size;
                 win.style.width = `${size.w}px`;
                 win.style.height = `${size.h}px`;
+                layout();
             }, () => saveSettings());
+
+            if (typeof ResizeObserver === 'function') {
+                new ResizeObserver(() => layout()).observe(win.querySelector('.pa-win-body'));
+            }
 
             win.querySelector('[data-pa-b-settings]').addEventListener('click', () => setMenuOpen(true, 'builds'));
             win.querySelector('[data-pa-b-close]').addEventListener('click', () => {
@@ -3834,20 +3880,13 @@ function observeChatLinks() {
             const grid = win.querySelector('[data-pa-b-grid]');
 
             win.classList.toggle('pa-builds-compact', Boolean(state.buildsCompact));
-            const cols = Number(state.buildsColumns) || 0;
-            const minCell = state.buildsCompact ? 34 : 105;
-            grid.style.gridTemplateColumns = cols
-                ? `repeat(${cols}, minmax(0, 1fr))`
-                : `repeat(auto-fill, minmax(${minCell}px, 1fr))`;
-            const size = state.buildsSize;
-            if (size) {
-                win.style.width = `${size.w}px`;
-                win.style.height = `${size.h}px`;
+            const box = state.buildsBox;
+            if (box) {
+                win.style.width = `${box.w}px`;
+                win.style.height = `${box.h}px`;
             } else {
                 win.style.height = '';
-                win.style.width = state.buildsCompact
-                    ? (cols ? 'auto' : '190px')
-                    : `${cols ? Math.max(170, cols * 118 + 18) : 260}px`;
+                win.style.width = state.buildsCompact ? '' : '170px';
             }
 
             if (!ids.length) {
@@ -3864,6 +3903,57 @@ function observeChatLinks() {
                 }).join('');
             }
             renderStatus();
+            layout();
+        }
+
+        // dopasowanie: szerzej = więcej kolumn, większe okno = większe przyciski
+        function layout() {
+            if (!win) return;
+            const grid = win.querySelector('[data-pa-b-grid]');
+            const body = win.querySelector('.pa-win-body');
+            const n = grid.querySelectorAll('.pa-build').length;
+            if (!n) {
+                grid.style.gridTemplateColumns = '1fr';
+                grid.style.gridAutoRows = '';
+                return;
+            }
+            const compact = Boolean(state.buildsCompact);
+            const gap = 4;
+            const ratio = compact ? 1.15 : 4.2;   // min. szerokość przycisku / wysokość
+            let cols;
+            let itemH;
+            if (state.buildsBox) {
+                const status = win.querySelector('[data-pa-b-status]');
+                const statusH = status.textContent ? status.offsetHeight + 4 : 0;
+                const W = body.clientWidth - 12;
+                const H = body.clientHeight - 12 - statusH;
+                const MAX_H = 34;
+                const sizes = [];
+                let bestS = 0;
+                for (let c = 1; c <= n; c++) {
+                    const rows = Math.ceil(n / c);
+                    const cellW = (W - gap * (c - 1)) / c;
+                    const h = (H - gap * (rows - 1)) / rows;
+                    sizes[c] = Math.min(h, cellW / ratio);
+                    bestS = Math.max(bestS, sizes[c]);
+                }
+                // przyciski rosną do MAX_H, a nadmiar szerokości idzie w kolejne kolumny
+                const target = Math.min(bestS, MAX_H) * 0.97;
+                cols = 1;
+                for (let c = n; c >= 1; c--) {
+                    if (sizes[c] >= target) {
+                        cols = c;
+                        break;
+                    }
+                }
+                itemH = Math.max(14, Math.min(MAX_H, Math.floor(sizes[cols])));
+            } else {
+                cols = compact ? Math.min(n, 5) : Math.min(n, 2);
+                itemH = 20;
+            }
+            grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+            grid.style.gridAutoRows = `${itemH}px`;
+            grid.style.setProperty('--pa-bfs', `${Math.max(9, Math.min(16, Math.round(itemH * 0.48)))}px`);
         }
 
         function renderStatus() {
@@ -3895,7 +3985,7 @@ function observeChatLinks() {
 
         function resetPosition() {
             state.buildsPosition = null;
-            state.buildsSize = null;
+            state.buildsBox = null;
             saveSettings();
             applyPosition();
             render();
