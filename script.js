@@ -4908,6 +4908,7 @@ function observeChatLinks() {
         const others = {};
         let gws = [];
         let spawns = [];
+        const checkedSpawns = new Set();
 
         let enabled = false;
         let isOpen = false;
@@ -4969,6 +4970,7 @@ function observeChatLinks() {
             for (const k in others) delete others[k];
             gws = [];
             spawns = [];
+            checkedSpawns.clear();
             if (isOpen) buildMap();
         }
 
@@ -5862,8 +5864,7 @@ function observeChatLinks() {
         }
 
         // respy zwykłych herosów: gdy raz podejdziemy w zasięg wykrywania, resp zostaje podświetlony
-        // (zapamiętane na sesję, osobno dla każdej mapy)
-        const checkedSpawns = new Set();
+        // (do wyjścia z mapy – po zmianie mapy i powrocie trzeba sprawdzić je od nowa)
         function highlightNearSpawns(hx, hy) {
             const r = Math.max(1, Number(state.mmSpawnRange) || 10);
             const mapKey = town?.id ?? '';
