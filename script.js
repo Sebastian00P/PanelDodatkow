@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.9';
+    const PANEL_VERSION = '5.1';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -740,7 +740,20 @@ div[data-chat-message-id] a {
     .pa-tag.pa-beta { color: #ffb347; border-color: rgba(255,179,71,.55); }
     .pa-section-title.pa-beta-title { color: #ffb347; }
     .pa-section-title.pa-beta-title span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--pa-muted); }
-    .pa-pt-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pa-pt-carousel { display: flex; align-items: stretch; gap: 4px; }
+    .pa-pt-track {
+      flex: 1 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden;
+      scroll-snap-type: x proximity; padding: 2px 1px 6px;
+      scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
+    }
+    .pa-pt-track::-webkit-scrollbar { height: 6px; }
+    .pa-pt-track::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 6px; }
+    .pa-pt-track .pa-pt-preset { flex: 0 0 86px; scroll-snap-align: start; }
+    .pa-pt-arrow {
+      flex: 0 0 22px; border: 1px solid var(--pa-border); border-radius: 8px; background: rgba(0,0,0,.22);
+      color: var(--pa-text); font: 700 16px var(--pa-font); cursor: pointer; padding: 0;
+    }
+    .pa-pt-arrow:hover { border-color: var(--pa-accent); color: var(--pa-accent); }
     .pa-pt-preset {
       display: flex; flex-direction: column; align-items: center; gap: 5px;
       padding: 7px 4px; border: 1px solid var(--pa-border); border-radius: 9px;
@@ -1357,6 +1370,11 @@ div[data-chat-message-id] a {
             { id: 'szmaragd', name: 'Szmaragd', bg: '#040E0B', panel: '#0A1914', accent: '#13A36C', text: '#E4FFF3', hl: '#D9FF6B' },
             { id: 'ametyst', name: 'Ametyst', bg: '#0A0613', panel: '#140C24', accent: '#8B3FD9', text: '#F1E9FF', hl: '#FF9BE6' },
             { id: 'bursztyn', name: 'Bursztyn', bg: '#0C0A07', panel: '#17120C', accent: '#D9820F', text: '#FFF3E0', hl: '#FFE07A' },
+            { id: 'grafit', name: 'Grafit', bg: '#0B0C0E', panel: '#15171B', accent: '#7C8597', text: '#ECEFF4', hl: '#C9D3E6' },
+            { id: 'sakura', name: 'Sakura', bg: '#10070C', panel: '#1C0D16', accent: '#E0457B', text: '#FFE9F1', hl: '#FFC2D6' },
+            { id: 'turkus', name: 'Turkus', bg: '#04100F', panel: '#0A1C1B', accent: '#0FB3A8', text: '#E3FFFC', hl: '#9CFFF0' },
+            { id: 'zloto', name: 'Złoto', bg: '#0D0B05', panel: '#18140A', accent: '#C9A227', text: '#FFF8E1', hl: '#FFE38A' },
+            { id: 'mroz', name: 'Mróz', bg: '#070C12', panel: '#0E1824', accent: '#4FA9E8', text: '#EAF6FF', hl: '#BDF0FF' },
         ];
         const CUSTOM_KEYS = [
             ['bg', 'Tło'],
@@ -2066,7 +2084,11 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 </button>`;
             return `
               <div class="pa-sub">Paleta kolorów</div>
-              <div class="pa-pt-presets">${PRESETS.map(swatch).join('')}${custom}</div>
+              <div class="pa-pt-carousel">
+                <button type="button" class="pa-pt-arrow" data-pa-pt-scroll="-1" title="Poprzednie">‹</button>
+                <div class="pa-pt-track" data-pa-pt-track>${PRESETS.map(swatch).join('')}${custom}</div>
+                <button type="button" class="pa-pt-arrow" data-pa-pt-scroll="1" title="Następne">›</button>
+              </div>
               <div class="pa-pt-custom" data-pa-pt-custom>
                 <div class="pa-pt-colors">
                   ${CUSTOM_KEYS.map(([k, label]) => `<label class="pa-pt-color"><input type="color" data-pa-pt-color="${k}"><span>${label}</span></label>`).join('')}
@@ -2529,7 +2551,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             name: 'Motyw',
             tag: 'Interfejs',
             beta: true,
-            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 5 gotowych palet albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
+            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 10 gotowych palet (przewijane) albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
             settings: () => ptTheme.settingsHtml(),
         },
         {
@@ -2545,6 +2567,20 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
               <p class="pa-hint">Gracze z drużyny z profesją przedmiotu są zawsze liczeni jako „Chcę bardzo”, pozostali jako „Chcę”. Kolory: <b style="color:#5be38a">≥50%</b> · <b style="color:#ffd84d">20–49%</b> · <b style="color:#ff6b6b">&lt;20%</b>. Najedź na % po szczegóły.</p>`,
         },
     ];
+
+    // sekcje menu dodatków
+    const MENU_SECTIONS = [
+        { id: 'wyglad', name: 'Wygląd' },
+        { id: 'klan', name: 'Klan' },
+        { id: 'walka', name: 'Walka' },
+        { id: 'czat', name: 'Czat' },
+        { id: 'beta', name: 'Beta' },
+    ];
+    const TAG_SECTION = { Interfejs: 'wyglad', Ekwipunek: 'walka', Walka: 'walka', 'Łupy': 'walka', Klan: 'klan', Czat: 'czat' };
+    function addonSection(addon) {
+        if (addon.beta) return 'beta';
+        return addon.section || TAG_SECTION[addon.tag] || 'wyglad';
+    }
 
     const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
@@ -2622,10 +2658,14 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
           <button type="button" class="pa-icon-btn" data-pa-close title="Zamknij (Esc)">✕</button>
         </div>
         <div class="pa-dialog-body">
-          <div class="pa-section-title">Dodatki</div>
-          <div class="pa-grid">${ADDONS.filter((a) => !a.beta).map(renderAddonCard).join('')}</div>
-          <div class="pa-section-title pa-beta-title" data-pa-beta-title>Beta <span>– dodatki w fazie testów, mogą jeszcze zawierać błędy</span></div>
-          <div class="pa-grid" data-pa-beta-grid>${ADDONS.filter((a) => a.beta).map(renderAddonCard).join('')}</div>
+          ${MENU_SECTIONS.map((sec) => {
+              const items = ADDONS.filter((a) => addonSection(a) === sec.id);
+              if (!items.length) return '';
+              const title = sec.id === 'beta'
+                  ? `<div class="pa-section-title pa-beta-title" data-pa-section-title="beta">Beta <span>– dodatki w fazie testów, mogą jeszcze zawierać błędy</span></div>`
+                  : `<div class="pa-section-title" data-pa-section-title="${sec.id}">${sec.name}</div>`;
+              return `${title}<div class="pa-grid" data-pa-section="${sec.id}">${items.map(renderAddonCard).join('')}</div>`;
+          }).join('')}
           <div class="pa-empty-search" data-pa-empty>Brak dodatków pasujących do wyszukiwania.</div>
           <div class="pa-coffee-footer">
             <a class="pa-coffee-btn" href="https://buycoffee.to/darksad" target="_blank" rel="noopener noreferrer">☕ Postaw kawę</a>
@@ -3282,9 +3322,13 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             card.classList.toggle('pa-hidden', !hit);
             if (hit) visible++;
         });
-        const betaVisible = modal.querySelectorAll('[data-pa-beta-grid] [data-pa-card]:not(.pa-hidden)').length;
-        const betaTitle = modal.querySelector('[data-pa-beta-title]');
-        if (betaTitle) betaTitle.style.display = betaVisible ? '' : 'none';
+        // nagłówki sekcji bez pasujących dodatków chowamy
+        modal.querySelectorAll('[data-pa-section]').forEach((grid) => {
+            const any = grid.querySelectorAll('[data-pa-card]:not(.pa-hidden)').length > 0;
+            grid.style.display = any ? '' : 'none';
+            const title = modal.querySelector(`[data-pa-section-title="${grid.getAttribute('data-pa-section')}"]`);
+            if (title) title.style.display = any ? '' : 'none';
+        });
         modal.querySelector('[data-pa-empty]').style.display = visible ? 'none' : 'block';
     }
 
@@ -3346,6 +3390,14 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const key = gear.getAttribute('data-pa-gear');
                 state.openSettings[key] = !state.openSettings[key];
                 syncUi(root);
+                return;
+            }
+
+            const ptScroll = event.target.closest('[data-pa-pt-scroll]');
+            if (ptScroll) {
+                event.preventDefault();
+                const track = ptScroll.parentElement.querySelector('[data-pa-pt-track]');
+                if (track) track.scrollBy({ left: Number(ptScroll.getAttribute('data-pa-pt-scroll')) * track.clientWidth * 0.8, behavior: 'smooth' });
                 return;
             }
 
@@ -4837,6 +4889,12 @@ function observeChatLinks() {
             if (!modal || !modal.classList.contains('pa-open') || !modal.contains(event.target)) return;
             event.stopPropagation();
             event.preventDefault();
+            const track = event.target.closest?.('[data-pa-pt-track]');
+            if (track) {
+                const u = event.deltaMode === 1 ? 16 : 1;
+                track.scrollLeft += (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY) * u;
+                return;
+            }
             const box = scrollableFrom(event.target, modal);
             if (!box) return;
             const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? box.clientHeight : 1;
@@ -6618,12 +6676,29 @@ function observeChatLinks() {
                 buildMap();
                 syncUi();
             }));
+            el.querySelector('[data-mm-side]').addEventListener('contextmenu', (e) => {
+                const row = e.target.closest('[data-mm-kind]');
+                if (!row || !ALERT_WORD[row.getAttribute('data-mm-kind')]) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const [x, y] = row.getAttribute('data-mm-row').split(',').map(Number);
+                copyAlert({ kind: row.getAttribute('data-mm-kind'), nick: row.getAttribute('data-mm-nick'), x, y });
+            });
             el.querySelector('[data-mm-side]').addEventListener('click', (e) => {
                 const chaseBtn = e.target.closest('[data-mm-chase]');
                 if (chaseBtn) {
                     const id = chaseBtn.getAttribute('data-mm-chase');
                     if (chase && chase.id === id) stopChase('Zatrzymano pościg');
                     else startChase(id);
+                    sideSig = null;
+                    renderSide();
+                    return;
+                }
+                const gwBtn = e.target.closest('[data-mm-gw]');
+                if (gwBtn) {
+                    const [gx, gy] = gwBtn.getAttribute('data-mm-gw').split(',').map(Number);
+                    if (gwWalk && gwWalk.x === gx && gwWalk.y === gy) stopGwWalk('Zatrzymano');
+                    else startGwWalk(gx, gy, gwBtn.getAttribute('data-mm-gw-name') || 'przejście');
                     sideSig = null;
                     renderSide();
                     return;
@@ -6653,6 +6728,50 @@ function observeChatLinks() {
                 if (chase) stopChase('Pościg przerwany');
                 goTo(t.x, t.y);
             });
+            // PPM na herosie / tytanie / kolosie – kopiuj komunikat do schowka
+            map.addEventListener('contextmenu', (e) => {
+                const t = tileFromEvent(e);
+                if (!t) return;
+                let best = null;
+                for (const o of collectObjects()) {
+                    if (!ALERT_WORD[o.kind]) continue;
+                    const d = Math.hypot(o.x - t.x, o.y - t.y);
+                    if (d <= 2 && (!best || d < best.d)) best = { o, d };
+                }
+                if (!best) return;
+                e.preventDefault();
+                e.stopPropagation();
+                copyAlert(best.o);
+            });
+        }
+
+        // ---------- kopiowanie komunikatu o herosie ----------
+        const ALERT_WORD = { heros: 'Heros', herosEvent: 'Heros', titan: 'Tytan', collosus: 'Kolos' };
+
+        function alertText(o) {
+            const lvl = PAGE.Engine?.hero?.d?.lvl ?? PAGE.hero?.lvl ?? '';
+            const nick = String(o.nick || '?').replace(/\s+/g, ' ').trim();
+            return `${ALERT_WORD[o.kind] || 'Heros'}! ${nick} na mapie ${town?.name || '?'} (${o.x},${o.y}), mój poziom - ${lvl}`;
+        }
+
+        async function copyAlert(o) {
+            const text = alertText(o);
+            let ok = false;
+            try {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            } catch (_) {
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    ok = document.execCommand('copy');
+                    ta.remove();
+                } catch (_) {}
+            }
+            showToast(ok ? `Skopiowano: ${text}` : 'Nie udało się skopiować do schowka');
         }
 
         function tileFromEvent(e) {
@@ -6913,7 +7032,8 @@ function observeChatLinks() {
                 if (o.x === undefined || o.y === undefined) continue;
                 const kind = otherKind(o);
                 const dist = h ? Math.hypot(o.x - h.x, o.y - h.y) : 999;
-                out.push({ id: String(id), nick: o.nick || '?', x: Number(o.x), y: Number(o.y), lvl: o.lvl, prof: o.prof || '', kind, dist, hostile: kind === 'enemy' || kind === 'other' });
+                const clan = typeof o.clan === 'object' && o.clan ? (o.clan.name || '') : (typeof o.clan === 'string' ? o.clan : '');
+                out.push({ id: String(id), nick: o.nick || '?', x: Number(o.x), y: Number(o.y), lvl: o.lvl, prof: o.prof || '', clan, kind, dist, hostile: kind === 'enemy' || kind === 'other' });
             }
             return out.sort((a, b) => a.dist - b.dist);
         }
@@ -6937,6 +7057,7 @@ function observeChatLinks() {
                 showToast('Nie widzę tego gracza na mapie');
                 return;
             }
+            if (gwWalk) stopGwWalk();
             chase = { id, nick: p.nick || '?', target: '', lastCmd: 0, lastAttack: 0, attacks: 0, mapId: town?.id };
             clearInterval(chaseTimer);
             chaseTimer = setInterval(chaseStep, 50);
@@ -6993,19 +7114,84 @@ function observeChatLinks() {
             goTo(tx, ty);
         }
 
+        // ---------- przejścia: dojdź i przejdź ----------
+        let gwWalk = null;
+        let gwTimer = null;
+
+        function getGateways() {
+            const h = heroPos();
+            return gws.map((g) => {
+                const x = Number(g.tx ?? g.x);
+                const y = Number(g.ty ?? g.y);
+                return { id: g.id, nick: g.nick || 'Przejście', x, y, dist: h ? Math.hypot(x - h.x, y - h.y) : 999 };
+            }).sort((a, b) => a.dist - b.dist);
+        }
+
+        function startGwWalk(x, y, nick) {
+            stopChase();
+            gwWalk = { x, y, nick, mapId: town?.id, start: Date.now(), lastCmd: 0, walkSent: 0, tries: 0 };
+            clearInterval(gwTimer);
+            gwTimer = setInterval(gwStep, 200);
+            gwStep();
+            showToast(`Idę do przejścia: ${nick}`);
+        }
+
+        function stopGwWalk(msg) {
+            if (!gwWalk) return;
+            gwWalk = null;
+            clearInterval(gwTimer);
+            gwTimer = null;
+            if (msg) showToast(msg);
+            sideSig = null;
+            if (isOpen) renderSide();
+        }
+
+        function gwStep() {
+            if (!gwWalk) return;
+            if (town && gwWalk.mapId !== undefined && String(town.id) !== String(gwWalk.mapId)) {
+                stopGwWalk(`Przejście: ${town.name || 'nowa mapa'}`);
+                return;
+            }
+            const now = Date.now();
+            if (now - gwWalk.start > 90000) {
+                stopGwWalk('Nie udało się dojść do przejścia');
+                return;
+            }
+            const h = heroPos();
+            if (!h) return;
+            if (Number(h.x) === gwWalk.x && Number(h.y) === gwWalk.y) {
+                // stoimy na przejściu – poproś serwer o przejście (jeśli gra nie zrobiła tego sama)
+                if (now - gwWalk.walkSent > 1500) {
+                    if (gwWalk.tries >= 3) {
+                        stopGwWalk('Stoję na przejściu, ale gra nie przenosi (może wymaga klucza lub poziomu)');
+                        return;
+                    }
+                    gwWalk.walkSent = now;
+                    gwWalk.tries++;
+                    net.send('walk');
+                }
+                return;
+            }
+            if (now - gwWalk.lastCmd > 2500) {
+                gwWalk.lastCmd = now;
+                goTo(gwWalk.x, gwWalk.y);
+            }
+        }
+
         // walka się zaczęła – koniec pościgu
         net.on('f', (f) => {
             if (chase && f && String(f.init) === '1' && !f.close) stopChase(`Walka z ${chase.nick}!`);
+            if (gwWalk && f && String(f.init) === '1' && !f.close) stopGwWalk('Walka – przerwano drogę do przejścia');
         });
 
         function sidePlayerTitle(p) {
-            return `${p.nick}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg' : 'gracz'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})\nKliknij, aby zaznaczyć na mapie`;
+            return `${p.nick}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg · ' : ''}${p.clan || 'bez klanu'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})\nKliknij, aby zaznaczyć na mapie`;
         }
 
         // aktualizuje tylko odległości / współrzędne w istniejących wierszach
-        function updateSidePositions(side, list, players) {
+        function updateSidePositions(side, list, players, gates = []) {
             const rows = side.querySelectorAll('.pa-mm-row');
-            if (rows.length !== list.length + players.length) {
+            if (rows.length !== list.length + players.length + gates.length) {
                 sideSig = null;
                 return;
             }
@@ -7032,6 +7218,14 @@ function observeChatLinks() {
                 const xy = row.querySelector('.pa-mm-xy');
                 if (xy) xy.textContent = ` · (${p.x},${p.y})`;
             });
+            gates.forEach((g, i) => {
+                const row = rows[list.length + players.length + i];
+                const dist = String(Math.round(g.dist));
+                if (row.dataset.mmDist === dist) return;
+                row.dataset.mmDist = dist;
+                const d = row.querySelector('[data-mm-dist]');
+                if (d) d.textContent = `${dist} kr.`;
+            });
         }
 
         function renderSide() {
@@ -7047,33 +7241,44 @@ function observeChatLinks() {
             }
             list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
             // podpis bez pozycji – przy samym ruchu nie przebudowujemy listy (inaczej przycisk pod kursorem mruga)
+            const gates = getGateways();
             const sig = list.map((o) => `${o.kind}${o.nick}${o.lvl}`).join('|') + '#' +
-                players.map((p) => `${p.id}:${p.nick}`).join('|') + '#' + (chase ? chase.id : '') + '#' + state.mmChaseAttack;
+                players.map((p) => `${p.id}:${p.nick}:${p.clan}`).join('|') + '#' + (chase ? chase.id : '') + '#' + state.mmChaseAttack +
+                '#' + gates.map((g) => `${g.id}:${g.nick}`).join('|') + '#' + (gwWalk ? `${gwWalk.x},${gwWalk.y}` : '');
             if (sig === sideSig) {
-                updateSidePositions(side, list, players);
+                updateSidePositions(side, list, players, gates);
                 return;
             }
             sideSig = sig;
-            side.classList.toggle('pa-visible', list.length > 0 || players.length > 0);
-            const rowsCount = list.length + players.length;
+            side.classList.toggle('pa-visible', list.length > 0 || players.length > 0 || gates.length > 0);
+            const rowsCount = list.length + players.length + gates.length;
             side.classList.toggle('pa-mm-dense', rowsCount > 8);
             side.classList.toggle('pa-mm-xdense', rowsCount > 16);
             side.style.height = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
             const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p) => {
                 const on = chase && chase.id === p.id;
                 return `
-              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" title="${escapeHtmlPa(p.nick)}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg' : 'gracz'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})&#10;Kliknij, aby zaznaczyć na mapie">
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" title="${escapeHtmlPa(p.nick)}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg · ' : ''}${p.clan ? escapeHtmlPa(p.clan) : 'bez klanu'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})&#10;Kliknij, aby zaznaczyć na mapie">
                 <span class="pa-mm-row-dot" style="background:${COLORS[p.kind]}"></span>
-                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : 'gracz · '}</span><span data-mm-dist>${Math.round(p.dist)} kr.</span><span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
+                <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : ''}${p.clan ? escapeHtmlPa(p.clan) : 'bez klanu'} · </span><span data-mm-dist>${Math.round(p.dist)} kr.</span><span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
                 <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" title="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : 'Goń'}</button>
               </div>`;
             }).join('') : '';
+            const gatesHtml = gates.length ? `<div class="pa-mm-side-title">Przejścia (${gates.length})</div>` + gates.map((g) => {
+                const on = gwWalk && gwWalk.x === g.x && gwWalk.y === g.y;
+                return `
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${g.x},${g.y}" data-mm-dist="${Math.round(g.dist)}" title="${escapeHtmlPa(g.nick)} · ${Math.round(g.dist)} kratek · (${g.x},${g.y})&#10;Kliknij, aby zaznaczyć na mapie">
+                <span class="pa-mm-row-dot" style="background:${COLORS.gw}"></span>
+                <span class="pa-mm-row-text"><b>${escapeHtmlPa(g.nick)}</b><small><span data-mm-dist>${Math.round(g.dist)} kr.</span><span class="pa-mm-xy"> · (${g.x},${g.y})</span></small></span>
+                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-gw="${g.x},${g.y}" data-mm-gw-name="${escapeHtmlPa(g.nick)}" title="Dojdź do przejścia i przejdź na następną mapę">${on ? 'Stop' : 'Przejdź'}</button>
+              </div>`;
+            }).join('') : '';
             side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o) => `
-              <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" title="Kliknij, aby zaznaczyć na mapie">
+              <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" data-mm-kind="${o.kind}" data-mm-nick="${escapeHtmlPa(o.nick)}" title="Kliknij, aby zaznaczyć na mapie${ALERT_WORD[o.kind] ? '&#10;PPM – skopiuj komunikat do schowka' : ''}">
                 <span class="pa-mm-row-dot" style="background:${COLORS[o.kind]}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(o.nick)}</b><small>${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})</small></span>
                 <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}">Podejdź</button>
-              </div>`).join('') + playersHtml;
+              </div>`).join('') + playersHtml + gatesHtml;
         }
 
         const objEls = new Map();
