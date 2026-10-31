@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.6';
+    const PANEL_VERSION = '5.7';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -913,7 +913,7 @@ div[data-chat-message-id] a {
     .pa-win .pa-win-grip { border-bottom-right-radius: 11px; }
 
     /* ---------- zmieniacz zestawów ---------- */
-    .pa-builds-win { min-width: 0; }
+    .pa-builds-win { min-width: 0; z-index: 1; }
     .pa-builds-win .pa-win-head { padding: 2px 3px 2px 7px; gap: 3px; }
     .pa-builds-win .pa-win-head b { font-size: 9.5px; letter-spacing: .5px; }
     .pa-builds-win .pa-win-head .pa-icon-btn { width: 16px; height: 16px; font-size: 9px; border-radius: 4px; }
