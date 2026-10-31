@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.8';
+    const PANEL_VERSION = '4.9';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -70,9 +70,7 @@
         ptShTips: true,
         // szansa na łup (BETA)
         lcEnabled: false,
-        lcAssumeMust: true,
         lcPulse: true,
-        lcTenRule: false,
     };
 
     const collapsedGroups = {
@@ -97,7 +95,7 @@
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
-        'lcEnabled', 'lcAssumeMust', 'lcPulse', 'lcTenRule',
+        'lcEnabled', 'lcPulse',
     ];
 
     function loadSettings() {
@@ -113,7 +111,6 @@
             state.themeGlass = saved.themeGlass !== false;
             ['ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips'].forEach((k) => { state[k] = saved[k] !== false; });
             if (!state.ptCustom || typeof state.ptCustom !== 'object') state.ptCustom = {};
-            state.lcAssumeMust = saved.lcAssumeMust !== false;
             state.lcPulse = saved.lcPulse !== false;
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
@@ -2104,18 +2101,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
     // ------------------------------------------------------------------
     //  SZANSA NA ŁUP (BETA) – % nad przedmiotami w oknie łupów + puls legend.
-    //  Zasady losowania (pomoc Margonem): najpierw losuje się wśród „Bardzo potrzebuję”
-    //  (działa tylko przy pasującej profesji), potem wśród „Potrzebuję”; kto już coś
-    //  dostał, ma 10× mniejszą szansę na kolejny przedmiot. Decyzji innych graczy nie
-    //  znamy, więc wynik to szacunek przy założeniach z ustawień.
+    //  Odczyt prosto z okna łupów (.loot-wnd): decyzja z data-state, rzadkość
+    //  z data-item-type. Szansa = 100% / liczba chętnych w grupie z najwyższym
+    //  priorytetem. Gracze z profesją przedmiotu zawsze liczeni jako „Chcę bardzo”.
     // ------------------------------------------------------------------
     const lootChance = (function () {
-        const DECISION = { WANT: 0, MUST: 1, NOT: 2 };
+        const MUST = 1;
+        const WANT = 0;
+        const NOT = -1;
 
-        const lootItems = {};        // id -> { id, name, stat, rarity, reqp }
-        let lootStates = {};         // id -> decyzja bohatera
-        let fightWarriors = {};      // id -> { id, name, prof, team }
-        let partyMembers = {};       // id -> { id, name, prof } – z pakietu „party”
+        const lootItems = {};        // id -> { reqp } – z pakietów „item” (loc: l)
+        let fightWarriors = {};      // id -> { id, prof, team }
+        let partyMembers = {};       // id -> { id, prof }
         let pollTimer = null;
 
         function heroId() {
@@ -2123,26 +2120,6 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         }
         function heroProf() {
             return String(PAGE.Engine?.hero?.d?.prof || PAGE.hero?.prof || fightWarriors[heroId()]?.prof || '');
-        }
-
-        // decyzja bohatera odczytana z okna łupów (napis pod przedmiotem: „Nie chcę” / „Chcę bardzo” / „Chcę”)
-        function domDecision(id) {
-            const el = itemElements(id)[0];
-            let node = el?.parentElement;
-            for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
-                if (node.querySelectorAll('[class*="item-id-"], [id^="item"]').length > 1) break;
-                const text = (node.textContent || '').toLowerCase();
-                if (text.includes('nie chc')) return DECISION.NOT;
-                if (text.includes('bardzo')) return DECISION.MUST;
-                if (text.includes('chc') || text.includes('potrzebuj')) return DECISION.WANT;
-            }
-            return null;
-        }
-
-        function myDecision(id) {
-            const fromDom = domDecision(id);
-            if (fromDom !== null) return fromDom;
-            return Number(lootStates[id] ?? DECISION.WANT);
         }
         function parseStat(stat) {
             const out = {};
@@ -2155,241 +2132,17 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             return out;
         }
 
-        // gracze w losowaniu: członkowie drużyny (pakiet „party”), a gdy go brak –
-        // gracze z mojej strony ostatniej walki (id > 0 = gracz, ten sam team co bohater)
-        function participants() {
-            const me = heroId();
-            const party = Object.values(partyMembers);
-            if (party.length > 1) {
-                const list = party.map((m) => ({
-                    id: m.id,
-                    name: m.name,
-                    prof: m.prof || fightWarriors[m.id]?.prof || '',
-                }));
-                if (!list.some((w) => w.id === me)) list.push({ id: me, name: 'Ty', prof: heroProf() });
-                return list;
-            }
-            const myTeam = fightWarriors[me]?.team;
-            const list = [];
-            if (myTeam !== undefined) {
-                Object.values(fightWarriors).forEach((w) => {
-                    if (w.id > 0 && w.team === myTeam) list.push(w);
-                });
-            }
-            if (!list.some((w) => w.id === me)) list.push({ id: me, name: 'Ty', prof: heroProf() });
-            return list;
-        }
-
-        function profFits(item, prof) {
-            if (!item.reqp) return true;
-            return Boolean(prof) && item.reqp.includes(prof);
-        }
-
-        function compute() {
-            const ids = Object.keys(lootStates).filter((id) => lootItems[id]);
-            if (Object.keys(partyMembers).length < 2) readEngineParty();
-            const players = participants();
-            const me = heroId();
-            players.forEach((p) => { if (p.id === me && !p.prof) p.prof = heroProf(); });
-            const meIdx = players.findIndex((p) => p.id === me);
-
-            // decyzja[i][p]: 1 = bardzo (skuteczne), 0 = potrzebuję, -1 = nie chce
-            const decisions = ids.map((id) => {
-                const item = lootItems[id];
-                return players.map((p, idx) => {
-                    if (idx === meIdx) {
-                        const d = myDecision(id);
-                        if (d === DECISION.NOT) return -1;
-                        // nieznana profesja = ufamy wyborowi „Chcę bardzo”
-                        if (d === DECISION.MUST && (!p.prof || profFits(item, p.prof))) return 1;
-                        return 0;
-                    }
-                    if (state.lcAssumeMust && item.reqp && profFits(item, p.prof)) return 1;
-                    return 0;
-                });
-            });
-
-            const n = players.length;
-            const wins = new Array(ids.length).fill(0);
-
-            // prosto: 100% dzielone przez liczbę graczy w grupie z najwyższym priorytetem
-            if (!state.lcTenRule) {
-                ids.forEach((id, i) => {
-                    const dec = decisions[i];
-                    const level = dec.includes(1) ? 1 : (dec.includes(0) ? 0 : -1);
-                    if (level < 0 || dec[meIdx] !== level) return;
-                    wins[i] = 1 / dec.filter((d) => d === level).length;
-                });
-            }
-
-            // z zasadą 10×: liczy się tylko, kto już coś dostał (maska bitowa)
-            let dist = new Map([[0, 1]]);
-            for (let i = 0; state.lcTenRule && i < ids.length; i++) {
-                const dec = decisions[i];
-                const level = dec.includes(1) ? 1 : (dec.includes(0) ? 0 : -1);
-                if (level < 0) continue;
-                const next = new Map();
-                dist.forEach((prob, mask) => {
-                    let total = 0;
-                    for (let p = 0; p < n; p++) {
-                        if (dec[p] === level) total += (mask & (1 << p)) ? 0.1 : 1;
-                    }
-                    for (let p = 0; p < n; p++) {
-                        if (dec[p] !== level) continue;
-                        const share = prob * ((mask & (1 << p)) ? 0.1 : 1) / total;
-                        if (p === meIdx) wins[i] += share;
-                        const m2 = mask | (1 << p);
-                        next.set(m2, (next.get(m2) || 0) + share);
-                    }
-                });
-                dist = next;
-            }
-
-            const result = {};
-            ids.forEach((id, i) => {
-                const dec = decisions[i];
-                result[id] = {
-                    pct: wins[i] * 100,
-                    mine: dec[meIdx],
-                    players: players.length,
-                    must: dec.filter((d) => d === 1).length,
-                };
-            });
-            return result;
-        }
-
-        function itemElements(id) {
-            const els = Array.from(document.querySelectorAll(`.item-id-${id}`));
-            const old = document.getElementById(`item${id}`);
-            if (old) els.push(old);
-            return els;
-        }
-
-        function pctClass(pct, mine) {
-            if (mine < 0) return 'pa-lc-off';
-            if (pct >= 50) return 'pa-lc-hi';
-            if (pct >= 20) return 'pa-lc-mid';
-            return 'pa-lc-low';
-        }
-
-        function render() {
-            if (!state.lcEnabled) return clearDom();
-            const ids = Object.keys(lootStates).filter((id) => lootItems[id]);
-            if (!ids.length) return clearDom();
-            const res = compute();
-            ids.forEach((id) => {
-                const r = res[id];
-                const item = lootItems[id];
-                itemElements(id).forEach((el) => {
-                    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-                    let badge = el.querySelector(':scope > .pa-lc-badge');
-                    if (!badge) {
-                        badge = document.createElement('div');
-                        badge.className = 'pa-lc-badge';
-                        el.appendChild(badge);
-                    }
-                    const text = r.mine < 0 ? '0%' : `${Math.round(r.pct)}%`;
-                    if (badge.textContent !== text) badge.textContent = text;
-                    badge.className = `pa-lc-badge ${pctClass(r.pct, r.mine)}`;
-                    badge.title = r.mine < 0
-                        ? 'Wybrano „Nie chcę”'
-                        : `Szacowana szansa na zdobycie: ${r.pct.toFixed(1)}%\nGracze w losowaniu: ${r.players}` +
-                          (r.must ? `\n„Bardzo potrzebuję” (zakładane): ${r.must}` : '');
-                    el.classList.toggle('pa-lc-leg', state.lcPulse && item.rarity === 'legendary');
-                });
-            });
-        }
-
-        function clearDom() {
-            document.querySelectorAll('.pa-lc-badge').forEach((b) => b.remove());
-            document.querySelectorAll('.pa-lc-leg').forEach((el) => el.classList.remove('pa-lc-leg'));
-            stopPoll();
-        }
-
-        // okno łupów rysuje się chwilę po pakiecie – dopóki trwa podział, odświeżaj co chwilę
-        function startPoll() {
-            if (pollTimer) return;
-            pollTimer = setInterval(() => {
-                const active = Object.keys(lootStates).some((id) => lootItems[id]);
-                if (!active || !state.lcEnabled) return clearDom();
-                render();
-            }, 500);
-        }
-        function stopPoll() {
-            if (pollTimer) clearInterval(pollTimer);
-            pollTimer = null;
-        }
-
-        function onPacket(data) {
-            let touched = false;
-
-            if (data.f && typeof data.f === 'object') {
-                if (data.f.init) fightWarriors = {};
-                const w = data.f.w;
-                if (w && typeof w === 'object') {
-                    Object.keys(w).forEach((key) => {
-                        const src = w[key] || {};
-                        const id = Number(src.id ?? key);
-                        const prev = fightWarriors[id] || { id };
-                        fightWarriors[id] = {
-                            id,
-                            name: src.name ?? prev.name,
-                            prof: src.prof ?? prev.prof,
-                            team: src.team ?? prev.team,
-                        };
-                    });
-                }
-            }
-
-            if (data.party && typeof data.party === 'object') {
-                const members = data.party.members;
-                if (members && typeof members === 'object') {
-                    partyMembers = {};
-                    Object.keys(members).forEach((key) => {
-                        const m = members[key] || {};
-                        const id = Number(m.id ?? key);
-                        partyMembers[id] = { id, name: m.nick ?? m.n ?? m.name, prof: m.prof || '' };
-                    });
-                } else if (!Object.keys(data.party).length) {
-                    partyMembers = {};   // opuszczenie drużyny
-                }
-            }
-
-            if (data.item && typeof data.item === 'object') {
-                Object.keys(data.item).forEach((id) => {
-                    const it = data.item[id] || {};
-                    if (it.del) {
-                        if (lootItems[id]) { delete lootItems[id]; touched = true; }
-                        return;
-                    }
-                    if (it.loc === 'l') {
-                        const stats = parseStat(it.stat);
-                        lootItems[id] = {
-                            id,
-                            name: it.name,
-                            rarity: stats.rarity || 'common',
-                            reqp: typeof stats.reqp === 'string' ? stats.reqp : '',
-                        };
-                        touched = true;
-                    } else if (it.loc && lootItems[id]) {
-                        delete lootItems[id];
-                        touched = true;
-                    }
-                });
-            }
-
-            if (data.loot && typeof data.loot === 'object') {
-                if (data.loot.init) lootStates = {};
-                if (data.loot.states && typeof data.loot.states === 'object') {
-                    Object.assign(lootStates, data.loot.states);
-                }
-                touched = true;
-            }
-
-            if (touched && state.lcEnabled) {
-                setTimeout(render, 30);
-                startPoll();
-            }
+        // wymagana profesja przedmiotu: z pakietu, a awaryjnie z magazynu przedmiotów gry
+        function itemReqp(id) {
+            if (lootItems[id]) return lootItems[id].reqp;
+            try {
+                const it = PAGE.Engine?.items?.getItemById?.(id) || PAGE.g?.item?.[id];
+                const stat = it?.stat ?? it?.d?.stat;
+                if (stat) return String(parseStat(stat).reqp || '');
+                const cached = it?._cachedStats?.reqp;
+                if (cached) return String(cached);
+            } catch (_) {}
+            return '';
         }
 
         function readEngineParty() {
@@ -2402,21 +2155,167 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     const d = m.d || m;
                     const id = Number(d.id ?? key);
                     if (!id || partyMembers[id]) return;
-                    partyMembers[id] = { id, name: d.nick ?? d.n ?? d.name, prof: d.prof || '' };
+                    partyMembers[id] = { id, prof: d.prof || '' };
                 });
             } catch (_) {}
         }
 
+        // gracze w losowaniu: drużyna, a gdy jej brak – moja strona ostatniej walki
+        function participants() {
+            const me = heroId();
+            if (Object.keys(partyMembers).length < 2) readEngineParty();
+            let list = Object.values(partyMembers).map((m) => ({ id: m.id, prof: m.prof || fightWarriors[m.id]?.prof || '' }));
+            if (list.length < 2) {
+                const myTeam = fightWarriors[me]?.team;
+                list = myTeam === undefined ? [] : Object.values(fightWarriors)
+                    .filter((w) => w.id > 0 && w.team === myTeam)
+                    .map((w) => ({ id: w.id, prof: w.prof || '' }));
+            }
+            const mine = list.find((p) => p.id === me);
+            if (mine) { if (!mine.prof) mine.prof = heroProf(); } else list.push({ id: me, prof: heroProf() });
+            return list;
+        }
+
+        const profFits = (reqp, prof) => !reqp || (Boolean(prof) && reqp.includes(prof));
+
+        function readDecision(wrapper) {
+            const st = String(wrapper.getAttribute('data-state') || '').toLowerCase();
+            if (st) {
+                if (st.includes('not') || st.includes('no')) return NOT;
+                if (st.includes('must') || st.includes('very') || st.includes('need')) return MUST;
+                if (st.includes('want')) return WANT;
+            }
+            const text = (wrapper.querySelector('.text-info')?.textContent || '').toLowerCase();
+            if (text.includes('nie chc')) return NOT;
+            if (text.includes('bardzo')) return MUST;
+            return WANT;
+        }
+
+        function wrapperItemId(wrapper) {
+            const attr = wrapper.getAttribute('loot-id');
+            if (attr) return attr;
+            const cls = Array.from(wrapper.querySelector('.item')?.classList || []).find((c) => c.startsWith('item-id-'));
+            return cls ? cls.slice(8) : '';
+        }
+
+        function chanceFor(reqp, decision, players) {
+            if (decision === NOT) return 0;
+            const me = heroId();
+            const myProf = players.find((p) => p.id === me)?.prof || '';
+            // „Chcę bardzo” działa tylko przy pasującej profesji (nieznana profesja = ufamy wyborowi)
+            const myMust = decision === MUST && (!myProf || profFits(reqp, myProf));
+            // pozostali z profesją przedmiotu zawsze liczeni jako „Chcę bardzo”
+            const othersMust = reqp ? players.filter((p) => p.id !== me && profFits(reqp, p.prof)).length : 0;
+            const mustCount = othersMust + (myMust ? 1 : 0);
+            if (mustCount > 0) return myMust ? 100 / mustCount : 0;
+            return 100 / players.length;
+        }
+
+        function pctClass(pct, decision) {
+            if (decision === NOT) return 'pa-lc-off';
+            if (pct >= 50) return 'pa-lc-hi';
+            if (pct >= 20) return 'pa-lc-mid';
+            return 'pa-lc-low';
+        }
+
+        function render() {
+            if (!state.lcEnabled) return clearDom();
+            const wrappers = document.querySelectorAll('.loot-wnd .loot-item-wrapper, .loot-window .loot-item-wrapper');
+            if (!wrappers.length) return;
+            const players = participants();
+            wrappers.forEach((wrapper) => {
+                const itemEl = wrapper.querySelector('.item');
+                if (!itemEl) return;
+                const id = wrapperItemId(wrapper);
+                const reqp = itemReqp(id);
+                const decision = readDecision(wrapper);
+                const pct = chanceFor(reqp, decision, players);
+
+                const slot = itemEl.parentElement || itemEl;
+                if (getComputedStyle(slot).position === 'static') slot.style.position = 'relative';
+                let badge = slot.querySelector(':scope > .pa-lc-badge');
+                if (!badge) {
+                    badge = document.createElement('div');
+                    badge.className = 'pa-lc-badge';
+                    slot.appendChild(badge);
+                }
+                const rounded = Math.round(pct * 10) / 10;
+                const text = `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}%`;
+                if (badge.textContent !== text) badge.textContent = text;
+                const cls = `pa-lc-badge ${pctClass(pct, decision)}`;
+                if (badge.className !== cls) badge.className = cls;
+                badge.title = decision === NOT
+                    ? 'Wybrano „Nie chcę”'
+                    : `Szansa na zdobycie: ${rounded}%\nGraczy w drużynie: ${players.length}` +
+                      (reqp ? `\nProfesja przedmiotu: ${reqp}` : '');
+
+                const isLeg = itemEl.getAttribute('data-item-type') === 't-leg' || Boolean(itemEl.querySelector('.highlight.t-leg'));
+                itemEl.classList.toggle('pa-lc-leg', state.lcPulse && isLeg);
+            });
+        }
+
+        function clearDom() {
+            document.querySelectorAll('.pa-lc-badge').forEach((b) => b.remove());
+            document.querySelectorAll('.pa-lc-leg').forEach((el) => el.classList.remove('pa-lc-leg'));
+        }
+
+        // okno łupów sprawdzane co pół sekundy, dopóki dodatek jest włączony
+        function startPoll() {
+            if (pollTimer) return;
+            pollTimer = setInterval(render, 500);
+        }
+        function stopPoll() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = null;
+        }
+
+        function onPacket(data) {
+            if (data.f && typeof data.f === 'object') {
+                if (data.f.init) fightWarriors = {};
+                const w = data.f.w;
+                if (w && typeof w === 'object') {
+                    Object.keys(w).forEach((key) => {
+                        const src = w[key] || {};
+                        const id = Number(src.id ?? key);
+                        const prev = fightWarriors[id] || { id };
+                        fightWarriors[id] = { id, prof: src.prof ?? prev.prof, team: src.team ?? prev.team };
+                    });
+                }
+            }
+            if (data.party && typeof data.party === 'object') {
+                const members = data.party.members;
+                if (members && typeof members === 'object') {
+                    partyMembers = {};
+                    Object.keys(members).forEach((key) => {
+                        const m = members[key] || {};
+                        const id = Number(m.id ?? key);
+                        partyMembers[id] = { id, prof: m.prof || '' };
+                    });
+                } else if (!Object.keys(data.party).length) {
+                    partyMembers = {};
+                }
+            }
+            if (data.item && typeof data.item === 'object') {
+                Object.keys(data.item).forEach((id) => {
+                    const it = data.item[id] || {};
+                    if (it.del) { delete lootItems[id]; return; }
+                    if (it.loc === 'l') lootItems[id] = { reqp: String(parseStat(it.stat).reqp || '') };
+                    else if (it.loc && lootItems[id]) delete lootItems[id];
+                });
+            }
+            if (data.loot && state.lcEnabled) setTimeout(render, 30);
+        }
+
         function init() {
             net.onAny(onPacket);
-            // zmiana decyzji kliknięciem – odśwież od razu (serwer i tak przyśle nowe states)
-            document.addEventListener('click', () => {
-                if (state.lcEnabled && pollTimer) setTimeout(render, 150);
+            document.addEventListener('click', (event) => {
+                if (state.lcEnabled && event.target.closest?.('.loot-wnd')) setTimeout(render, 120);
             }, true);
+            if (state.lcEnabled) startPoll();
         }
 
         function setEnabled(on) {
-            if (on) { render(); startPoll(); } else clearDom();
+            if (on) { render(); startPoll(); } else { stopPoll(); clearDom(); }
         }
 
         return { init, render, setEnabled };
@@ -2575,10 +2474,8 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             beta: true,
             desc: 'W oknie łupów po walce pokazuje nad każdym przedmiotem szacowaną szansę (%) na to, że trafi do ciebie – czyli 100% podzielone przez liczbę chętnych: przy „Chcę bardzo” przez liczbę graczy w drużynie z profesją przedmiotu, przy „Chcę” przez wszystkich chętnych. Przedmioty legendarne delikatnie pulsują.',
             settings: () => `
-              <label class="pa-check"><input type="checkbox" data-pa-opt="lcAssumeMust"> Zakładaj, że gracze z pasującą profesją klikną „Bardzo potrzebuję”</label>
-              <label class="pa-check"><input type="checkbox" data-pa-opt="lcTenRule"> Uwzględniaj zasadę 10× mniejszej szansy po zdobyciu łupu (kolejność losowania zgadywana)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="lcPulse"> Puls przedmiotów legendarnych</label>
-              <p class="pa-hint">Gra nie zdradza decyzji innych graczy, więc % to szacunek: pozostali domyślnie „Potrzebuję”. Kolory: <b style="color:#5be38a">≥50%</b> · <b style="color:#ffd84d">20–49%</b> · <b style="color:#ff6b6b">&lt;20%</b>. Najedź na % po szczegóły.</p>`,
+              <p class="pa-hint">Gracze z drużyny z profesją przedmiotu są zawsze liczeni jako „Chcę bardzo”, pozostali jako „Chcę”. Kolory: <b style="color:#5be38a">≥50%</b> · <b style="color:#ffd84d">20–49%</b> · <b style="color:#ff6b6b">&lt;20%</b>. Najedź na % po szczegóły.</p>`,
         },
     ];
 
