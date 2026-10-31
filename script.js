@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.1';
+    const PANEL_VERSION = '5.3';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -817,7 +817,7 @@ div[data-chat-message-id] a {
     @keyframes paLcGlowPulse { 0%, 100% { opacity: .75; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
     @keyframes paLcFadeIn { from { opacity: 0; } }
     .pa-empty-search { display: none; padding: 30px 0; text-align: center; color: var(--pa-muted); font-size: 12px; }
-    .pa-coffee-footer { display: flex; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--pa-border); }
+    .pa-coffee-footer { flex: 0 0 auto; display: flex; justify-content: center; padding: 10px 16px; border-top: 1px solid var(--pa-border); background: rgba(0,0,0,.18); }
     .pa-coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: var(--pa-accent); color: #1a1408 !important; font: 600 12px var(--pa-font); text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
     .pa-coffee-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
 
@@ -2667,10 +2667,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
               return `${title}<div class="pa-grid" data-pa-section="${sec.id}">${items.map(renderAddonCard).join('')}</div>`;
           }).join('')}
           <div class="pa-empty-search" data-pa-empty>Brak dodatków pasujących do wyszukiwania.</div>
-          <div class="pa-coffee-footer">
-            <a class="pa-coffee-btn" href="https://buycoffee.to/darksad" target="_blank" rel="noopener noreferrer">☕ Postaw kawę</a>
-          </div>
-
+        </div>
+        <div class="pa-coffee-footer">
+          <a class="pa-coffee-btn" href="https://buycoffee.to/darksad" target="_blank" rel="noopener noreferrer">☕ Postaw kawę</a>
         </div>
       </div>`;
         document.body.appendChild(modal);
@@ -6726,6 +6725,7 @@ function observeChatLinks() {
                 const t = clickTarget(e);
                 if (!t) return;
                 if (chase) stopChase('Pościg przerwany');
+                if (gwWalk) stopGwWalk('Przerwano drogę do przejścia');
                 goTo(t.x, t.y);
             });
             // PPM na herosie / tytanie / kolosie – kopiuj komunikat do schowka
@@ -7124,7 +7124,7 @@ function observeChatLinks() {
                 const x = Number(g.tx ?? g.x);
                 const y = Number(g.ty ?? g.y);
                 return { id: g.id, nick: g.nick || 'Przejście', x, y, dist: h ? Math.hypot(x - h.x, y - h.y) : 999 };
-            }).sort((a, b) => a.dist - b.dist);
+            }).sort((a, b) => String(a.nick).localeCompare(String(b.nick), 'pl', { sensitivity: 'base', numeric: true }) || a.x - b.x || a.y - b.y);
         }
 
         function startGwWalk(x, y, nick) {
@@ -7177,6 +7177,28 @@ function observeChatLinks() {
                 goTo(gwWalk.x, gwWalk.y);
             }
         }
+
+        // gracz sam rusza postacią (klawisze ruchu albo klik na mapie gry) – przerywamy automat
+        const MOVE_KEYS = new Set(['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd']);
+        function manualMove() {
+            if (chase) stopChase('Pościg przerwany – ruszyłeś postacią');
+            if (gwWalk) stopGwWalk('Przerwano drogę do przejścia – ruszyłeś postacią');
+        }
+        document.addEventListener('keydown', (e) => {
+            if (!chase && !gwWalk) return;
+            if (!MOVE_KEYS.has(String(e.key || '').toLowerCase())) return;
+            const t = e.target;
+            if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName || ''))) return;
+            manualMove();
+        }, true);
+        document.addEventListener('mousedown', (e) => {
+            if (!chase && !gwWalk) return;
+            if (e.button !== 0 && e.button !== 2) return;
+            const t = e.target;
+            if (!t || t.tagName !== 'CANVAS') return;
+            if (t.closest('.pa-mm, .c-window, .border-window, [id^="darksad"]')) return;
+            manualMove();
+        }, true);
 
         // walka się zaczęła – koniec pościgu
         net.on('f', (f) => {
