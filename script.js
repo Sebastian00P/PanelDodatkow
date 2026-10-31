@@ -769,10 +769,40 @@ div[data-chat-message-id] a {
     .pa-lc-badge.pa-lc-low { color: #ff6b6b; border-color: rgba(255,107,107,.55); }
     .pa-lc-badge.pa-lc-off { color: #8a90a0; }
     @keyframes paLcLegPulse {
-      0%, 100% { scale: 1; }
-      50% { scale: 1.15; }
+      0%, 100% { scale: 1; filter: drop-shadow(0 0 3px rgba(255,190,60,.6)); }
+      50% { scale: 1.2; filter: drop-shadow(0 0 10px rgba(255,200,70,1)); }
     }
     .pa-lc-leg { animation: paLcLegPulse 1.4s ease-in-out infinite; transform-origin: 50% 50%; will-change: scale; z-index: 2; }
+
+    /* złota ramka okna łupów z legendą */
+    @keyframes paLcWndGlow {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(255,170,40,.85), 0 0 18px 6px rgba(255,120,20,.55), 0 0 40px 14px rgba(255,190,60,.30); }
+      50% { box-shadow: 0 0 0 3px rgba(255,214,90,1), 0 0 28px 10px rgba(255,140,30,.80), 0 0 70px 24px rgba(255,200,80,.45); }
+    }
+    .loot-wnd.pa-lc-legwnd { animation: paLcWndGlow 1.4s ease-in-out infinite; border-radius: 8px; }
+
+    /* złote promienie za oknem */
+    .pa-lc-rays {
+      position: absolute; width: 0; height: 0; pointer-events: none;
+    }
+    .pa-lc-rays-spin, .pa-lc-rays-glow {
+      position: absolute; left: 50%; top: 50%; border-radius: 50%; pointer-events: none;
+    }
+    .pa-lc-rays-spin {
+      width: 900px; height: 900px; margin: -450px 0 0 -450px;
+      background: repeating-conic-gradient(from 0deg, rgba(255,205,90,.55) 0deg 7deg, rgba(255,205,90,0) 7deg 20deg);
+      -webkit-mask: radial-gradient(circle, #000 12%, rgba(0,0,0,.6) 32%, transparent 62%);
+      mask: radial-gradient(circle, #000 12%, rgba(0,0,0,.6) 32%, transparent 62%);
+      animation: paLcRaysSpin 22s linear infinite, paLcFadeIn .6s ease-out;
+    }
+    .pa-lc-rays-glow {
+      width: 520px; height: 520px; margin: -260px 0 0 -260px;
+      background: radial-gradient(circle, rgba(255,215,110,.55) 0%, rgba(255,150,40,.25) 35%, transparent 70%);
+      animation: paLcGlowPulse 1.4s ease-in-out infinite, paLcFadeIn .6s ease-out;
+    }
+    @keyframes paLcRaysSpin { to { transform: rotate(360deg); } }
+    @keyframes paLcGlowPulse { 0%, 100% { opacity: .75; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
+    @keyframes paLcFadeIn { from { opacity: 0; } }
     .pa-empty-search { display: none; padding: 30px 0; text-align: center; color: var(--pa-muted); font-size: 12px; }
     .pa-coffee-footer { display: flex; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--pa-border); }
     .pa-coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: var(--pa-accent); color: #1a1408 !important; font: 600 12px var(--pa-font); text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
@@ -2200,6 +2230,8 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
         function chanceFor(reqp, decision, players) {
             if (decision === NOT) return 0;
+            // przedmiot bez profesji: „Chcę bardzo” nic nie daje – dzielimy na całą drużynę
+            if (!reqp) return 100 / players.length;
             const me = heroId();
             const myProf = players.find((p) => p.id === me)?.prof || '';
             // „Chcę bardzo” działa tylko przy pasującej profesji (nieznana profesja = ufamy wyborowi)
@@ -2221,7 +2253,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         function render() {
             if (!state.lcEnabled) return clearDom();
             const wrappers = document.querySelectorAll('.loot-wnd .loot-item-wrapper, .loot-window .loot-item-wrapper');
-            if (!wrappers.length) return;
+            if (!wrappers.length) return updateLegendFx();
             const players = participants();
             wrappers.forEach((wrapper) => {
                 const itemEl = wrapper.querySelector('.item');
@@ -2252,11 +2284,46 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const isLeg = itemEl.getAttribute('data-item-type') === 't-leg' || Boolean(itemEl.querySelector('.highlight.t-leg'));
                 itemEl.classList.toggle('pa-lc-leg', state.lcPulse && isLeg);
             });
+            updateLegendFx();
+        }
+
+        // złote promienie za oknem łupów + świecąca ramka, gdy w łupach jest legenda
+        function updateLegendFx() {
+            document.querySelectorAll('.loot-wnd').forEach((wnd) => {
+                const visible = wnd.offsetParent !== null && getComputedStyle(wnd).display !== 'none';
+                const hasLeg = state.lcPulse && visible && Boolean(wnd.querySelector('.pa-lc-leg'));
+                wnd.classList.toggle('pa-lc-legwnd', hasLeg);
+                let rays = wnd.__paLcRays;
+                if (!hasLeg) {
+                    if (rays) { rays.remove(); wnd.__paLcRays = null; }
+                    return;
+                }
+                if (!rays || !rays.isConnected) {
+                    rays = document.createElement('div');
+                    rays.className = 'pa-lc-rays';
+                    rays.innerHTML = '<div class="pa-lc-rays-spin"></div><div class="pa-lc-rays-glow"></div>';
+                    wnd.parentElement.insertBefore(rays, wnd);
+                    wnd.__paLcRays = rays;
+                }
+                // promienie podążają za oknem (można je przeciągać)
+                const cx = wnd.offsetLeft + wnd.offsetWidth / 2;
+                const cy = wnd.offsetTop + wnd.offsetHeight / 2;
+                rays.style.left = `${cx}px`;
+                rays.style.top = `${cy}px`;
+                rays.style.zIndex = getComputedStyle(wnd).zIndex;
+            });
+            // promienie po zamkniętych oknach
+            document.querySelectorAll('.pa-lc-rays').forEach((r) => {
+                const wnd = r.nextElementSibling;
+                if (!wnd || !wnd.classList.contains('pa-lc-legwnd')) r.remove();
+            });
         }
 
         function clearDom() {
             document.querySelectorAll('.pa-lc-badge').forEach((b) => b.remove());
             document.querySelectorAll('.pa-lc-leg').forEach((el) => el.classList.remove('pa-lc-leg'));
+            document.querySelectorAll('.pa-lc-legwnd').forEach((el) => { el.classList.remove('pa-lc-legwnd'); el.__paLcRays = null; });
+            document.querySelectorAll('.pa-lc-rays').forEach((r) => r.remove());
         }
 
         // okno łupów sprawdzane co pół sekundy, dopóki dodatek jest włączony
@@ -2472,9 +2539,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             name: 'Szansa na łup',
             tag: 'Łupy',
             beta: true,
-            desc: 'W oknie łupów po walce pokazuje nad każdym przedmiotem szacowaną szansę (%) na to, że trafi do ciebie – czyli 100% podzielone przez liczbę chętnych: przy „Chcę bardzo” przez liczbę graczy w drużynie z profesją przedmiotu, przy „Chcę” przez wszystkich chętnych. Przedmioty legendarne delikatnie pulsują.',
+            desc: 'W oknie łupów po walce pokazuje nad każdym przedmiotem szacowaną szansę (%) na to, że trafi do ciebie – czyli 100% podzielone przez liczbę chętnych: przy „Chcę bardzo” przez liczbę graczy w drużynie z profesją przedmiotu, przy „Chcę” i przy przedmiotach bez profesji przez całą drużynę. Gdy wypadnie legenda, za oknem łupów pojawiają się złote promienie, okno świeci, a legenda pulsuje.',
             settings: () => `
-              <label class="pa-check"><input type="checkbox" data-pa-opt="lcPulse"> Puls przedmiotów legendarnych</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="lcPulse"> Efekt legendy: złote promienie i poświata okna łupów, pulsujące powiększanie przedmiotu</label>
               <p class="pa-hint">Gracze z drużyny z profesją przedmiotu są zawsze liczeni jako „Chcę bardzo”, pozostali jako „Chcę”. Kolory: <b style="color:#5be38a">≥50%</b> · <b style="color:#ffd84d">20–49%</b> · <b style="color:#ff6b6b">&lt;20%</b>. Najedź na % po szczegóły.</p>`,
         },
     ];
@@ -6053,6 +6120,7 @@ function observeChatLinks() {
         const tpls = {};
         const icons = {};
         const npcs = {};
+        const graves = {};          // groby graczy (pakiet „rip” / NPC „Ś.p.”)
         const others = {};
         let gws = [];
         let spawns = [];
@@ -6116,6 +6184,7 @@ function observeChatLinks() {
                 pvp: t.pvp,
             };
             for (const k in npcs) delete npcs[k];
+            for (const k in graves) delete graves[k];
             for (const k in others) delete others[k];
             gws = [];
             spawns = [];
@@ -6181,6 +6250,23 @@ function observeChatLinks() {
                     const n = Object.assign({ id }, data.npcs[id]);
                     if (n.del) delete npcs[id];
                     else npcs[id] = Object.assign(npcs[id] || {}, assembleNpc(n));
+                }
+                changed = true;
+            }
+            // groby graczy – osobny pakiet; obsługujemy listę obiektów albo słownik id -> grób
+            for (const key of ['rip', 'rips', 'graves', 'grave']) {
+                const g = data[key];
+                if (!g || typeof g !== 'object') continue;
+                const entries = Array.isArray(g) ? g.map((v, i) => [v?.id ?? i, v]) : Object.entries(g);
+                for (const [gid, v] of entries) {
+                    if (!v || typeof v !== 'object') continue;
+                    const id = String(v.id ?? gid);
+                    if (v.del) { delete graves[id]; continue; }
+                    const x = Number(v.x);
+                    const y = Number(v.y);
+                    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+                    const who = v.nick ?? v.n ?? v.name ?? '';
+                    graves[id] = { x, y, nick: who ? `Ś.p. ${who}` : 'Grób', lvl: v.lvl };
                 }
                 changed = true;
             }
@@ -6330,7 +6416,7 @@ function observeChatLinks() {
         function npcKind(n) {
             if (n.invisible) return null;
             // groby graczy – rozpoznajemy po grafice albo nazwie
-            if (/gr[oó]b|grave|tomb|nagrob/i.test(String(n.icon || '')) || /^\s*gr[oó]b\b/i.test(String(n.nick || ''))) return 'grave';
+            if (/gr[oó]b|grave|tomb|nagrob|\brip\b/i.test(String(n.icon || '')) || /^\s*(gr[oó]b\b|[śs]\.?\s?p\.)/i.test(String(n.nick || ''))) return 'grave';
             const type = Number(n.type);
             const wt = Number(n.wt) || 0;
             if (type === 2 || type === 3) {
@@ -6388,6 +6474,11 @@ function observeChatLinks() {
                 if (kind === 'mob' && !state.mmShowMobs) continue;
                 if (kind === 'npc' && !state.mmShowNpcs) continue;
                 list.push({ id: `n${id}`, x: n.x, y: n.y, nick: n.nick || '', lvl: n.lvl, grp: n.grp, kind });
+            }
+            for (const id in graves) {
+                const g = graves[id];
+                if (list.some((o) => o.kind === 'grave' && Math.abs(o.x - g.x) < 1 && Math.abs(o.y - g.y) < 1)) continue;
+                list.push({ id: `g${id}`, x: g.x, y: g.y, nick: g.nick, lvl: g.lvl, kind: 'grave' });
             }
             if (state.mmShowOthers) {
                 if (!Object.keys(others).length) refreshOthersFromEngine();
