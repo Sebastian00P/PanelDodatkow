@@ -68,6 +68,10 @@
         ptShBtn: true,
         ptShFrame: true,
         ptShTips: true,
+        // szansa na łup (BETA)
+        lcEnabled: false,
+        lcAssumeMust: true,
+        lcPulse: true,
     };
 
     const collapsedGroups = {
@@ -92,6 +96,7 @@
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
+        'lcEnabled', 'lcAssumeMust', 'lcPulse',
     ];
 
     function loadSettings() {
@@ -107,6 +112,8 @@
             state.themeGlass = saved.themeGlass !== false;
             ['ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips'].forEach((k) => { state[k] = saved[k] !== false; });
             if (!state.ptCustom || typeof state.ptCustom !== 'object') state.ptCustom = {};
+            state.lcAssumeMust = saved.lcAssumeMust !== false;
+            state.lcPulse = saved.lcPulse !== false;
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
@@ -750,6 +757,24 @@ div[data-chat-message-id] a {
     .pa-pt-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
     .pa-pt-color { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10.5px; color: var(--pa-muted); cursor: pointer; }
     .pa-pt-color input[type="color"] { width: 100%; height: 28px; padding: 0; border: 1px solid var(--pa-border); border-radius: 7px; background: none; cursor: pointer; }
+    /* ---------- szansa na łup ---------- */
+    .pa-lc-badge {
+      position: absolute; left: 50%; top: -15px; transform: translateX(-50%);
+      z-index: 50; pointer-events: auto; cursor: help;
+      padding: 0 4px; border-radius: 6px; white-space: nowrap;
+      font: 700 10px/13px "Segoe UI", Arial, sans-serif; letter-spacing: .2px;
+      background: rgba(10,12,18,.88); border: 1px solid rgba(255,255,255,.18);
+      text-shadow: 0 1px 1px #000;
+    }
+    .pa-lc-badge.pa-lc-hi { color: #5be38a; border-color: rgba(91,227,138,.55); }
+    .pa-lc-badge.pa-lc-mid { color: #ffd84d; border-color: rgba(255,216,77,.55); }
+    .pa-lc-badge.pa-lc-low { color: #ff6b6b; border-color: rgba(255,107,107,.55); }
+    .pa-lc-badge.pa-lc-off { color: #8a90a0; }
+    @keyframes paLcLegPulse {
+      0%, 100% { filter: drop-shadow(0 0 2px rgba(255,111,0,.35)); }
+      50% { filter: drop-shadow(0 0 7px rgba(255,111,0,.95)) brightness(1.08); }
+    }
+    .pa-lc-leg { animation: paLcLegPulse 1.8s ease-in-out infinite; }
     .pa-empty-search { display: none; padding: 30px 0; text-align: center; color: var(--pa-muted); font-size: 12px; }
     .pa-coffee-footer { display: flex; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--pa-border); }
     .pa-coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: var(--pa-accent); color: #1a1408 !important; font: 600 12px var(--pa-font); text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
@@ -2077,6 +2102,251 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
     })();
 
     // ------------------------------------------------------------------
+    //  SZANSA NA ŁUP (BETA) – % nad przedmiotami w oknie łupów + puls legend.
+    //  Zasady losowania (pomoc Margonem): najpierw losuje się wśród „Bardzo potrzebuję”
+    //  (działa tylko przy pasującej profesji), potem wśród „Potrzebuję”; kto już coś
+    //  dostał, ma 10× mniejszą szansę na kolejny przedmiot. Decyzji innych graczy nie
+    //  znamy, więc wynik to szacunek przy założeniach z ustawień.
+    // ------------------------------------------------------------------
+    const lootChance = (function () {
+        const DECISION = { WANT: 0, MUST: 1, NOT: 2 };
+
+        const lootItems = {};        // id -> { id, name, stat, rarity, reqp }
+        let lootStates = {};         // id -> decyzja bohatera
+        let fightWarriors = {};      // id -> { id, name, prof, team }
+        let pollTimer = null;
+
+        function heroId() {
+            return Number(PAGE.Engine?.hero?.d?.id || PAGE.hero?.id || 0);
+        }
+        function heroProf() {
+            return String(PAGE.Engine?.hero?.d?.prof || PAGE.hero?.prof || '');
+        }
+        function parseStat(stat) {
+            const out = {};
+            String(stat || '').split(';').forEach((part) => {
+                if (!part) return;
+                const i = part.indexOf('=');
+                if (i < 0) out[part] = true;
+                else out[part.slice(0, i)] = part.slice(i + 1);
+            });
+            return out;
+        }
+
+        // gracze z mojej drużyny w ostatniej walce (id > 0 = gracz, ten sam team co bohater)
+        function participants() {
+            const me = heroId();
+            const myTeam = fightWarriors[me]?.team;
+            const list = [];
+            if (myTeam !== undefined) {
+                Object.values(fightWarriors).forEach((w) => {
+                    if (w.id > 0 && w.team === myTeam) list.push(w);
+                });
+            }
+            if (!list.some((w) => w.id === me)) list.push({ id: me, name: 'Ty', prof: heroProf() });
+            return list;
+        }
+
+        function profFits(item, prof) {
+            if (!item.reqp) return true;
+            return Boolean(prof) && item.reqp.includes(prof);
+        }
+
+        function compute() {
+            const ids = Object.keys(lootStates).filter((id) => lootItems[id]);
+            const players = participants();
+            const me = heroId();
+            const meIdx = players.findIndex((p) => p.id === me);
+
+            // decyzja[i][p]: 1 = bardzo (skuteczne), 0 = potrzebuję, -1 = nie chce
+            const decisions = ids.map((id) => {
+                const item = lootItems[id];
+                return players.map((p, idx) => {
+                    if (idx === meIdx) {
+                        const d = Number(lootStates[id] ?? DECISION.WANT);
+                        if (d === DECISION.NOT) return -1;
+                        if (d === DECISION.MUST && profFits(item, p.prof)) return 1;
+                        return 0;
+                    }
+                    if (state.lcAssumeMust && item.reqp && profFits(item, p.prof)) return 1;
+                    return 0;
+                });
+            });
+
+            // dokładny rachunek: liczy się tylko, kto już coś dostał (maska bitowa)
+            const n = players.length;
+            const wins = new Array(ids.length).fill(0);
+            let dist = new Map([[0, 1]]);
+            for (let i = 0; i < ids.length; i++) {
+                const dec = decisions[i];
+                const level = dec.includes(1) ? 1 : (dec.includes(0) ? 0 : -1);
+                if (level < 0) continue;
+                const next = new Map();
+                dist.forEach((prob, mask) => {
+                    let total = 0;
+                    for (let p = 0; p < n; p++) {
+                        if (dec[p] === level) total += (mask & (1 << p)) ? 0.1 : 1;
+                    }
+                    for (let p = 0; p < n; p++) {
+                        if (dec[p] !== level) continue;
+                        const share = prob * ((mask & (1 << p)) ? 0.1 : 1) / total;
+                        if (p === meIdx) wins[i] += share;
+                        const m2 = mask | (1 << p);
+                        next.set(m2, (next.get(m2) || 0) + share);
+                    }
+                });
+                dist = next;
+            }
+
+            const result = {};
+            ids.forEach((id, i) => {
+                const dec = decisions[i];
+                result[id] = {
+                    pct: wins[i] * 100,
+                    mine: dec[meIdx],
+                    players: players.length,
+                    must: dec.filter((d) => d === 1).length,
+                };
+            });
+            return result;
+        }
+
+        function itemElements(id) {
+            const els = Array.from(document.querySelectorAll(`.item-id-${id}`));
+            const old = document.getElementById(`item${id}`);
+            if (old) els.push(old);
+            return els;
+        }
+
+        function pctClass(pct, mine) {
+            if (mine < 0) return 'pa-lc-off';
+            if (pct >= 50) return 'pa-lc-hi';
+            if (pct >= 20) return 'pa-lc-mid';
+            return 'pa-lc-low';
+        }
+
+        function render() {
+            if (!state.lcEnabled) return clearDom();
+            const ids = Object.keys(lootStates).filter((id) => lootItems[id]);
+            if (!ids.length) return clearDom();
+            const res = compute();
+            ids.forEach((id) => {
+                const r = res[id];
+                const item = lootItems[id];
+                itemElements(id).forEach((el) => {
+                    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+                    let badge = el.querySelector(':scope > .pa-lc-badge');
+                    if (!badge) {
+                        badge = document.createElement('div');
+                        badge.className = 'pa-lc-badge';
+                        el.appendChild(badge);
+                    }
+                    const text = r.mine < 0 ? '0%' : `${Math.round(r.pct)}%`;
+                    if (badge.textContent !== text) badge.textContent = text;
+                    badge.className = `pa-lc-badge ${pctClass(r.pct, r.mine)}`;
+                    badge.title = r.mine < 0
+                        ? 'Wybrano „Nie chcę”'
+                        : `Szacowana szansa na zdobycie: ${r.pct.toFixed(1)}%\nGracze w losowaniu: ${r.players}` +
+                          (r.must ? `\n„Bardzo potrzebuję” (zakładane): ${r.must}` : '');
+                    el.classList.toggle('pa-lc-leg', state.lcPulse && item.rarity === 'legendary');
+                });
+            });
+        }
+
+        function clearDom() {
+            document.querySelectorAll('.pa-lc-badge').forEach((b) => b.remove());
+            document.querySelectorAll('.pa-lc-leg').forEach((el) => el.classList.remove('pa-lc-leg'));
+            stopPoll();
+        }
+
+        // okno łupów rysuje się chwilę po pakiecie – dopóki trwa podział, odświeżaj co chwilę
+        function startPoll() {
+            if (pollTimer) return;
+            pollTimer = setInterval(() => {
+                const active = Object.keys(lootStates).some((id) => lootItems[id]);
+                if (!active || !state.lcEnabled) return clearDom();
+                render();
+            }, 500);
+        }
+        function stopPoll() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = null;
+        }
+
+        function onPacket(data) {
+            let touched = false;
+
+            if (data.f && typeof data.f === 'object') {
+                if (data.f.init) fightWarriors = {};
+                const w = data.f.w;
+                if (w && typeof w === 'object') {
+                    Object.keys(w).forEach((key) => {
+                        const src = w[key] || {};
+                        const id = Number(src.id ?? key);
+                        const prev = fightWarriors[id] || { id };
+                        fightWarriors[id] = {
+                            id,
+                            name: src.name ?? prev.name,
+                            prof: src.prof ?? prev.prof,
+                            team: src.team ?? prev.team,
+                        };
+                    });
+                }
+            }
+
+            if (data.item && typeof data.item === 'object') {
+                Object.keys(data.item).forEach((id) => {
+                    const it = data.item[id] || {};
+                    if (it.del) {
+                        if (lootItems[id]) { delete lootItems[id]; touched = true; }
+                        return;
+                    }
+                    if (it.loc === 'l') {
+                        const stats = parseStat(it.stat);
+                        lootItems[id] = {
+                            id,
+                            name: it.name,
+                            rarity: stats.rarity || 'common',
+                            reqp: typeof stats.reqp === 'string' ? stats.reqp : '',
+                        };
+                        touched = true;
+                    } else if (it.loc && lootItems[id]) {
+                        delete lootItems[id];
+                        touched = true;
+                    }
+                });
+            }
+
+            if (data.loot && typeof data.loot === 'object') {
+                if (data.loot.init) lootStates = {};
+                if (data.loot.states && typeof data.loot.states === 'object') {
+                    Object.assign(lootStates, data.loot.states);
+                }
+                touched = true;
+            }
+
+            if (touched && state.lcEnabled) {
+                setTimeout(render, 30);
+                startPoll();
+            }
+        }
+
+        function init() {
+            net.onAny(onPacket);
+            // zmiana decyzji kliknięciem – odśwież od razu (serwer i tak przyśle nowe states)
+            document.addEventListener('click', () => {
+                if (state.lcEnabled && pollTimer) setTimeout(render, 150);
+            }, true);
+        }
+
+        function setEnabled(on) {
+            if (on) { render(); startPoll(); } else clearDom();
+        }
+
+        return { init, render, setEnabled };
+    })();
+
+    // ------------------------------------------------------------------
     //  KATALOG DODATKÓW (karty w modalu)
     // ------------------------------------------------------------------
     const ADDONS = [
@@ -2219,6 +2489,19 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             beta: true,
             desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 5 gotowych palet albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
             settings: () => ptTheme.settingsHtml(),
+        },
+        {
+            key: 'lootchance',
+            stateKey: 'lcEnabled',
+            icon: '🎲',
+            name: 'Szansa na łup',
+            tag: 'Łupy',
+            beta: true,
+            desc: 'W oknie łupów po walce pokazuje nad każdym przedmiotem szacowaną szansę (%) na to, że trafi do ciebie – liczoną z liczby graczy w drużynie, twojej decyzji (Bardzo potrzebuję / Potrzebuję / Nie chcę), profesji z przedmiotu i zasady 10× mniejszej szansy po zdobyciu łupu. Przedmioty legendarne delikatnie pulsują.',
+            settings: () => `
+              <label class="pa-check"><input type="checkbox" data-pa-opt="lcAssumeMust"> Zakładaj, że gracze z pasującą profesją klikną „Bardzo potrzebuję”</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="lcPulse"> Puls przedmiotów legendarnych</label>
+              <p class="pa-hint">Gra nie zdradza decyzji innych graczy, więc % to szacunek: pozostali domyślnie „Potrzebuję”. Kolory: <b style="color:#5be38a">≥50%</b> · <b style="color:#ffd84d">20–49%</b> · <b style="color:#ff6b6b">&lt;20%</b>. Najedź na % po szczegóły.</p>`,
         },
     ];
 
@@ -2914,6 +3197,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             berserk.setEnabled(on);
             showToast(on ? 'Berserker: ikonka dodana obok ekwipunku' : 'Berserker wyłączony');
         },
+        lootchance(on) {
+            lootChance.setEnabled(on);
+            showToast(on ? 'Szansa na łup włączona' : 'Szansa na łup wyłączona');
+        },
         theme(on) {
             ptTheme.apply();
             applyTheme();
@@ -3088,6 +3375,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 if (key.startsWith('builds')) builds.render();
                 if (key.startsWith('mm')) miniMap.refresh();
                 if (key.startsWith('pt')) ptTheme.apply();
+                if (key.startsWith('lc')) lootChance.render();
                 return;
             }
 
@@ -6987,6 +7275,7 @@ function observeChatLinks() {
             builds.init();
             whoResize.init();
             miniMap.init();
+            lootChance.init();
             syncUi(root);
 
             // motyw gry ładuje się chwilę po starcie – dopasuj kolor jeszcze raz
