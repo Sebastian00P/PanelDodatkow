@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.3';
+    const PANEL_VERSION = '5.5';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -6807,25 +6807,14 @@ function observeChatLinks() {
                 tip.style.display = 'none';
                 return;
             }
-            const r = el.querySelector('[data-mm-map]').getBoundingClientRect();
-            const px = e.clientX - r.left;
-            const py = e.clientY - r.top;
-            const reach = Math.max(7, dotSize() / 2 + 5);
-            const hits = [];
-            for (const o of collectObjects()) {
-                if (!matchesSearch(o)) continue;
-                const cx = (o.x + 0.5) * scale;
-                const cy = (o.y + 0.5) * scale;
-                const d = Math.hypot(cx - px, cy - py);
-                if (d <= reach) hits.push({ o, d });
-            }
+            const hits = hitObjects(e, Math.max(10, dotSize() / 2 + 8), 9);
             if (!hits.length) {
                 tip.style.display = 'none';
                 return;
             }
             hits.sort((a, b) => a.d - b.d || (LAYERS[b.o.kind] || 0) - (LAYERS[a.o.kind] || 0));
             tip.innerHTML = hits.slice(0, 6).map(({ o }) => {
-                const type = o.player ? (o.clan ? `gracz · ${escapeHtmlPa(o.clan)}` : 'gracz') : (TYPE_NAMES[o.kind] || '');
+                const type = o.player ? (o.clan ? escapeHtmlPa(o.clan) : 'bez klanu') : (TYPE_NAMES[o.kind] || '');
                 const lvl = o.lvl ? ` · ${o.lvl}${o.prof || ''} lvl` : '';
                 const grp = o.grp ? ' · grupa' : '';
                 return `<div><b style="color:${COLORS[o.kind] || '#fff'}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${Math.round(o.tx ?? o.x)},${Math.round(o.ty ?? o.y)})</span></div>`;
@@ -6837,19 +6826,38 @@ function observeChatLinks() {
             tip.style.top = `${Math.max(4, y)}px`;
         }
 
+        // obiekty pod kursorem: liczymy odległość i od pozycji z danych gry, i od kropki
+        // na ekranie (kropki graczy płynnie dojeżdżają, więc przez chwilę są „za” pozycją)
+        function hitObjects(e, reach, pad) {
+            const r = el.querySelector('[data-mm-map]').getBoundingClientRect();
+            const px = e.clientX - r.left;
+            const py = e.clientY - r.top;
+            const hits = [];
+            for (const o of collectObjects()) {
+                if (!matchesSearch(o)) continue;
+                let d = Math.hypot((o.x + 0.5) * scale - px, (o.y + 0.5) * scale - py);
+                if (d > reach) d = Infinity;
+                const dot = objEls.get(o.id || `${o.kind}-${o.x}-${o.y}`);
+                if (dot) {
+                    const b = dot.getBoundingClientRect();
+                    const dx = Math.max(b.left - e.clientX, 0, e.clientX - b.right);
+                    const dy = Math.max(b.top - e.clientY, 0, e.clientY - b.bottom);
+                    const dd = Math.hypot(dx, dy);
+                    if (dd <= pad) d = Math.min(d, dd);
+                }
+                if (Number.isFinite(d)) hits.push({ o, d });
+            }
+            return hits;
+        }
+
         // kliknięcie: jeśli kursor jest przy obiekcie – idź do niego
         function clickTarget(e) {
             const t = tileFromEvent(e);
             if (!t) return null;
-            const r = el.querySelector('[data-mm-map]').getBoundingClientRect();
-            const px = e.clientX - r.left;
-            const py = e.clientY - r.top;
-            const reach = Math.max(6, dotSize() / 2 + 3);
             let best = null;
-            for (const o of collectObjects()) {
-                if (o.kind === 'marker' || !matchesSearch(o)) continue;
-                const d = Math.hypot((o.x + 0.5) * scale - px, (o.y + 0.5) * scale - py);
-                if (d <= reach && (!best || d < best.d)) best = { d, x: Math.round(o.tx ?? o.x), y: Math.round(o.ty ?? o.y) };
+            for (const { o, d } of hitObjects(e, Math.max(8, dotSize() / 2 + 5), 6)) {
+                if (o.kind === 'marker') continue;
+                if (!best || d < best.d) best = { d, x: Math.round(o.tx ?? o.x), y: Math.round(o.ty ?? o.y) };
             }
             return best ? { x: best.x, y: best.y } : t;
         }
@@ -7129,7 +7137,7 @@ function observeChatLinks() {
 
         function startGwWalk(x, y, nick) {
             stopChase();
-            gwWalk = { x, y, nick, mapId: town?.id, start: Date.now(), lastCmd: 0, walkSent: 0, tries: 0 };
+            gwWalk = { x, y, nick, mapId: town?.id, engineMapId: engineMapId(), start: Date.now(), lastCmd: 0, walkSent: 0, tries: 0, onTileSince: 0 };
             clearInterval(gwTimer);
             gwTimer = setInterval(gwStep, 200);
             gwStep();
@@ -7146,9 +7154,15 @@ function observeChatLinks() {
             if (isOpen) renderSide();
         }
 
+        function engineMapId() {
+            try { return String(PAGE.Engine?.map?.d?.id ?? PAGE.map?.id ?? ''); } catch (_) { return ''; }
+        }
+
         function gwStep() {
             if (!gwWalk) return;
-            if (town && gwWalk.mapId !== undefined && String(town.id) !== String(gwWalk.mapId)) {
+            const emid = engineMapId();
+            if ((town && gwWalk.mapId !== undefined && String(town.id) !== String(gwWalk.mapId)) ||
+                (gwWalk.engineMapId && emid && emid !== gwWalk.engineMapId)) {
                 stopGwWalk(`Przejście: ${town.name || 'nowa mapa'}`);
                 return;
             }
@@ -7160,8 +7174,11 @@ function observeChatLinks() {
             const h = heroPos();
             if (!h) return;
             if (Number(h.x) === gwWalk.x && Number(h.y) === gwWalk.y) {
-                // stoimy na przejściu – poproś serwer o przejście (jeśli gra nie zrobiła tego sama)
-                if (now - gwWalk.walkSent > 1500) {
+                // gra zwykle przenosi sama po wejściu na przejście – „walk” wysyłamy tylko awaryjnie,
+                // gdy po 3 s dalej stoimy na tej samej mapie (inaczej postać wracała przez przejście z powrotem)
+                if (!gwWalk.onTileSince) gwWalk.onTileSince = now;
+                if (now - gwWalk.onTileSince < 3000) return;
+                if (now - gwWalk.walkSent > 3000) {
                     if (gwWalk.tries >= 3) {
                         stopGwWalk('Stoję na przejściu, ale gra nie przenosi (może wymaga klucza lub poziomu)');
                         return;
@@ -7172,6 +7189,7 @@ function observeChatLinks() {
                 }
                 return;
             }
+            gwWalk.onTileSince = 0;
             if (now - gwWalk.lastCmd > 2500) {
                 gwWalk.lastCmd = now;
                 goTo(gwWalk.x, gwWalk.y);
