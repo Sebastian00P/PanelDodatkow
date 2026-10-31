@@ -6253,10 +6253,30 @@ function observeChatLinks() {
                 }
                 changed = true;
             }
-            // groby graczy – osobny pakiet; obsługujemy listę obiektów albo słownik id -> grób
+            // groby graczy – pakiet „rip”: płaska lista, po 9 pól na grób:
+            // nick, lvl, oplvl, prof, x, y, ts (czas śmierci), opis1 („Zabity przez…”), opis2 (epitafium).
+            // Grób znika z gry 5 minut po śmierci.
+            if (Array.isArray(data.rip) && data.rip.length && typeof data.rip[0] !== 'object') {
+                const r = data.rip;
+                for (let i = 0; i + 8 < r.length; i += 9) {
+                    const x = parseInt(r[i + 4], 10);
+                    const y = parseInt(r[i + 5], 10);
+                    const ts = parseInt(r[i + 6], 10) || Math.floor(Date.now() / 1000);
+                    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+                    const id = `${r[i]}-${x}-${y}-${ts}`;
+                    graves[id] = {
+                        x, y, lvl: r[i + 1],
+                        nick: `Ś.p. ${r[i]}${r[i + 1] ? ` (${r[i + 1]}${r[i + 3] || ''})` : ''}${r[i + 7] ? ` – ${r[i + 7]}` : ''}`,
+                        expires: ts + 300,
+                    };
+                }
+                changed = true;
+            }
+            // inne możliwe formaty (lista obiektów albo słownik id -> grób)
             for (const key of ['rip', 'rips', 'graves', 'grave']) {
                 const g = data[key];
                 if (!g || typeof g !== 'object') continue;
+                if (Array.isArray(g) && g.length && typeof g[0] !== 'object') continue;
                 const entries = Array.isArray(g) ? g.map((v, i) => [v?.id ?? i, v]) : Object.entries(g);
                 for (const [gid, v] of entries) {
                     if (!v || typeof v !== 'object') continue;
@@ -6475,8 +6495,10 @@ function observeChatLinks() {
                 if (kind === 'npc' && !state.mmShowNpcs) continue;
                 list.push({ id: `n${id}`, x: n.x, y: n.y, nick: n.nick || '', lvl: n.lvl, grp: n.grp, kind });
             }
+            const nowSec = Date.now() / 1000;
             for (const id in graves) {
                 const g = graves[id];
+                if (g.expires && nowSec > g.expires) { delete graves[id]; continue; }
                 if (list.some((o) => o.kind === 'grave' && Math.abs(o.x - g.x) < 1 && Math.abs(o.y - g.y) < 1)) continue;
                 list.push({ id: `g${id}`, x: g.x, y: g.y, nick: g.nick, lvl: g.lvl, kind: 'grave' });
             }
