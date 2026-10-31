@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '4.6';
+    const PANEL_VERSION = '4.7';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -60,6 +60,14 @@
         mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
+        // motyw gry (BETA)
+        ptEnabled: false,
+        ptPreset: 'karmazyn',         // id palety albo 'custom'
+        ptCustom: {},                 // {bg, panel, accent, text}
+        ptShWin: true,
+        ptShBtn: true,
+        ptShFrame: true,
+        ptShTips: true,
     };
 
     const collapsedGroups = {
@@ -83,6 +91,7 @@
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
+        'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
     ];
 
     function loadSettings() {
@@ -96,6 +105,8 @@
             state.titanWindow = saved.titanWindow !== false;
             state.titanHighlightOwn = saved.titanHighlightOwn !== false;
             state.themeGlass = saved.themeGlass !== false;
+            ['ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips'].forEach((k) => { state[k] = saved[k] !== false; });
+            if (!state.ptCustom || typeof state.ptCustom !== 'object') state.ptCustom = {};
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
@@ -443,7 +454,8 @@ div[data-chat-message-id] a {
 
     function applyTheme() {
         const rootStyle = document.documentElement.style;
-        rootStyle.setProperty('--pa-accent', detectGameAccent());
+        // z włączonym motywem gry panel bierze akcent z palety motywu
+        rootStyle.setProperty('--pa-accent', state.ptEnabled ? ptTheme.palette().accentHi : detectGameAccent());
     }
 
     function injectStyles() {
@@ -720,6 +732,24 @@ div[data-chat-message-id] a {
     .pa-hint { margin: 4px 0 0; font-size: 10.5px; color: var(--pa-muted); line-height: 1.4; }
     .pa-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 520px) { .pa-split { grid-template-columns: 1fr; } .pa-grid { grid-template-columns: 1fr; } }
+    .pa-tag.pa-beta { color: #ffb347; border-color: rgba(255,179,71,.55); }
+    .pa-section-title.pa-beta-title { color: #ffb347; }
+    .pa-section-title.pa-beta-title span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--pa-muted); }
+    .pa-pt-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pa-pt-preset {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      padding: 7px 4px; border: 1px solid var(--pa-border); border-radius: 9px;
+      background: rgba(0,0,0,.22); color: var(--pa-text); font: 600 11px var(--pa-font); cursor: pointer;
+    }
+    .pa-pt-preset:hover { border-color: var(--pa-border-strong); }
+    .pa-pt-preset.pa-on { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 12%, rgba(0,0,0,.22)); }
+    .pa-pt-dots { display: flex; gap: 3px; min-height: 14px; }
+    .pa-pt-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); display: block; }
+    .pa-pt-custom { display: none; margin-top: 8px; padding: 8px; border: 1px dashed var(--pa-border); border-radius: 9px; }
+    .pa-pt-custom.pa-open { display: block; }
+    .pa-pt-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .pa-pt-color { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10.5px; color: var(--pa-muted); cursor: pointer; }
+    .pa-pt-color input[type="color"] { width: 100%; height: 28px; padding: 0; border: 1px solid var(--pa-border); border-radius: 7px; background: none; cursor: pointer; }
     .pa-empty-search { display: none; padding: 30px 0; text-align: center; color: var(--pa-muted); font-size: 12px; }
     .pa-coffee-footer { display: flex; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--pa-border); }
     .pa-coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: var(--pa-accent); color: #1a1408 !important; font: 600 12px var(--pa-font); text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
@@ -1259,6 +1289,794 @@ div[data-chat-message-id] a {
     }
 
     // ------------------------------------------------------------------
+    //  MOTYW GRY (BETA) – przekolorowanie interfejsu Margonem.
+    //  5 gotowych palet + własna (4 kolory: tło, panel, akcent, tekst).
+    //  Kolory tipów przedmiotów są stałe. Cienie (box-shadow) można wyłączać grupami.
+    // ------------------------------------------------------------------
+    const ptTheme = (function () {
+        const STYLE_ID = 'pa-theme-style';
+        const VARS_ID = 'pa-theme-vars';
+        const SHADOW_ID = 'pa-theme-shadows';
+
+        const PRESETS = [
+            { id: 'karmazyn', name: 'Karmazyn', bg: '#070B16', panel: '#0B1224', accent: '#C1121F', text: '#E8ECFF', hl: '#FFD84D', panel2: '#101B34' },
+            { id: 'lazur', name: 'Lazur', bg: '#050A14', panel: '#0A1526', accent: '#1F6FE0', text: '#E6F0FF', hl: '#7FE3FF' },
+            { id: 'szmaragd', name: 'Szmaragd', bg: '#040E0B', panel: '#0A1914', accent: '#13A36C', text: '#E4FFF3', hl: '#D9FF6B' },
+            { id: 'ametyst', name: 'Ametyst', bg: '#0A0613', panel: '#140C24', accent: '#8B3FD9', text: '#F1E9FF', hl: '#FF9BE6' },
+            { id: 'bursztyn', name: 'Bursztyn', bg: '#0C0A07', panel: '#17120C', accent: '#D9820F', text: '#FFF3E0', hl: '#FFE07A' },
+        ];
+        const CUSTOM_KEYS = [
+            ['bg', 'Tło'],
+            ['panel', 'Panel'],
+            ['accent', 'Akcent'],
+            ['text', 'Tekst'],
+        ];
+
+        // kolory tipów przedmiotów – zawsze takie same, niezależnie od palety
+        const TIP_VARS = `
+  --pt-tip-red-glow:rgba(255,77,90,.65);
+  --pt-tip-red-border:rgba(255,77,90,.90);
+  --pt-tip-blue-glow:rgba(110,140,255,.55);
+  --pt-tip-blue-border:rgba(110,140,255,.80);
+  --pt-tip-gold-glow:rgba(255,216,77,.60);
+  --pt-tip-gold-border:rgba(255,216,77,.85);
+  --pt-tip-pink-glow:rgba(193,18,31,.55);
+  --pt-tip-pink-border:rgba(193,18,31,.85);
+  --pt-tip-silver-glow:rgba(232,236,255,.45);
+  --pt-tip-silver-border:rgba(232,236,255,.70);`;
+
+        // grupy cieni: klucz w state -> klasa na <body>, gdy cienie są WYŁĄCZONE
+        const SHADOW_GROUPS = [
+            { key: 'ptShWin', cls: 'pa-ns-win', label: 'Cienie i poświaty okien oraz paneli' },
+            { key: 'ptShBtn', cls: 'pa-ns-btn', label: 'Poświaty przycisków, slotów, pasków i kart czatu' },
+            { key: 'ptShFrame', cls: 'pa-ns-frame', label: 'Poświata wokół ramki gry' },
+            { key: 'ptShTips', cls: 'pa-ns-tips', label: 'Poświata tipów przedmiotów (kolory zostają)' },
+        ];
+
+        const CSS = `
+
+.border-window.ui-draggable.window-on-peak .item-section .grid{
+  background-image:linear-gradient(to right, var(--pt-blue-line) 1px, transparent 1px),linear-gradient(to bottom, var(--pt-blue-line) 1px, transparent 1px)!important;
+  background-size:33px 33px!important;
+  background-color:var(--pt-bg-a05)!important;
+}
+.interface-element-table-3 td{border-color:var(--pt-blue-line)!important;}
+
+.scroll-pane:has(.shop-item){
+  background-image:linear-gradient(to right, var(--pt-blue-line) 1px, transparent 1px),linear-gradient(to bottom, var(--pt-blue-line) 1px, transparent 1px)!important;
+  background-size:33px 33px!important;
+  background-color:var(--pt-bg-a35)!important;
+}
+
+.sell-items .interface-element-item-slot-grid-stretch{
+  background-image:linear-gradient(to right, var(--pt-blue-line) 1px, transparent 1px),linear-gradient(to bottom, var(--pt-blue-line) 1px, transparent 1px)!important;
+  background-size:33px 33px!important;
+  background-color:var(--pt-bg-a25)!important;
+}
+.sell-items.interface-element-grid-border.items-grid{
+  background:linear-gradient(180deg, var(--pt-panel-a90), var(--pt-bg-a40))!important;
+  border:1px solid var(--pt-blue-line)!important;
+  border-radius:10px!important;
+  box-shadow:inset 0 0 0 1px var(--pt-blue-line-soft);
+}
+
+.buy-items .interface-element-item-slot-grid-stretch{
+  background-image:linear-gradient(to right, var(--pt-blue-line) 1px, transparent 1px),linear-gradient(to bottom, var(--pt-blue-line) 1px, transparent 1px)!important;
+  background-size:33px 33px!important;
+  background-color:var(--pt-bg-a25)!important;
+}
+.buy-items.interface-element-grid-border.items-grid{
+  background:linear-gradient(180deg, var(--pt-panel-a90), var(--pt-bg-a40))!important;
+  border:1px solid var(--pt-blue-line)!important;
+  border-radius:10px!important;
+  box-shadow:inset 0 0 0 1px var(--pt-blue-line-soft);
+}
+
+body.pa-theme{background:var(--pt-bg)!important;color:var(--pt-text);}
+
+.left-column,.chat-message-wrapper,.scroll-wrapper.chat-message-wrapper,.left-panel,.chat-wrapper,.chat-input-wrapper,.magic-input,.menu-card,.chat-config-wrapper{
+  background:var(--pt-grad-panel-glass)!important;
+  border:1px solid var(--pt-blue-line)!important;
+  box-shadow:0 8px 26px var(--pt-blue-line),inset 0 0 0 1px var(--pt-blue-line-soft)!important;
+  border-radius:12px!important;
+}
+
+.chat-input-wrapper .magic-input-wrapper{
+  border-top: 1px solid var(--pt-blue-line)!important;
+  border-bottom: 1px solid var(--pt-blue-line)!important;
+}
+
+right-column .inner-wrapper,
+.right-column .stats-wrapper,
+.right-column .inventory-grid-bg,
+.right-column .bags-navigation-bg,
+.right-column .currency-light-mode,
+.right-column .location-wrapper-light-mode,
+.right-column .world-wrapper-light-mode,
+.right-column .stats-light-mode,
+.right-column .interface-element-equipment-with-additional-bag{
+  background:var(--pt-grad-panel-glass)!important;
+  border:1px solid var(--pt-blue-line)!important;
+  box-shadow:0 8px 26px var(--pt-black-a45),inset 0 0 0 1px var(--pt-blue-line-soft)!important;
+  border-radius:12px!important;
+}
+
+.interface-element-item-slot-grid-stretch,
+.inventory-grid-bg,
+.inventory-grid .inner-grid{
+  background-image:linear-gradient(to right, var(--pt-blue-line-soft) 1px, transparent 1px),linear-gradient(to bottom, var(--pt-blue-line-soft) 1px, transparent 1px)!important;
+  background-size:33px 33px,33px 33px!important;
+}
+
+.widget-in-interface-bar.widget-button{
+  background:var(--pt-grad-panel);
+  border:1px solid var(--pt-blue-line);
+  border-radius:12px;
+  box-shadow:0 4px 18px var(--pt-black-a45),0 0 14px var(--pt-accent-a18);
+}
+.widget-in-interface-bar.widget-button:hover{
+  box-shadow:0 6px 22px var(--pt-black-a55),0 0 18px var(--pt-accent-a35);
+  transform:translateY(-1px);
+}
+.widget-in-interface-bar.widget-button .icon{filter:drop-shadow(0 0 6px var(--pt-accent-a35));}
+
+
+body.pa-theme .cll-alert{
+  background:var(--pt-grad-header);
+  border:1px solid var(--pt-btn-border);
+
+  box-shadow:
+    0 10px 40px var(--pt-msg-focus-ring),
+    inset 0 1px 0 var(--pt-white-a03);
+
+  border-radius:14px;
+  overflow:hidden;
+  padding:0!important;
+  color:var(--pt-text);
+  opacity:.9;
+}
+
+body.pa-theme .cll-alert [class^="cll-alert-container"]{padding:0!important;}
+body.pa-theme .cll-alert .cll-alert-header{
+  background:var(--pt-grad-header);
+  color:var(--pt-text);font-weight:700;letter-spacing:.5px;
+  padding:4px 6px;border-bottom:1px solid var(--pt-blue-line);
+}
+.cll-alert-content{margin:0!important;}
+body.pa-theme .cll-alert .cll-alert-content{
+  display:block;width:100%;
+  background:var(--pt-grad-panel)!important;
+  color:var(--pt-text-yellow)!important;
+  border:1px solid var(--pt-blue-line)!important;
+  border-radius:10px;
+  padding:10px 12px;
+  line-height:1.3;box-shadow:inset 0 0 10px var(--pt-black-a45);
+  box-sizing:border-box;
+}
+body.pa-theme .cll-alert .cll-alert-content:not(textarea){
+  height:auto!important;min-height:unset!important;max-height:70vh;overflow:auto;
+}
+body.pa-theme .cll-alert textarea.cll-alert-content{
+  min-height:36px;max-height:84px;overflow:auto;resize:vertical;
+}
+body.pa-theme .cll-alert .cll-hot-img{
+  max-width:100%;height:auto;border-radius:8px;
+  display:block;margin:2px auto 8px auto;
+  box-shadow:0 6px 20px var(--pt-black-a45),0 0 16px var(--pt-accent-a25);
+  border:1px solid var(--pt-accent-hi-a25);
+}
+body.pa-theme .cll-alert .cll-min-lvl,
+body.pa-theme .cll-alert .cll-max-lvl{
+  background:var(--pt-bg-a45);color:var(--pt-text);
+  border:1px solid var(--pt-blue-line);border-radius:8px;
+  padding:2px 6px;outline:none;
+}
+body.pa-theme .cll-alert .cll-alert-buttons{
+  display:flex;gap:8px;padding:4px 6px 6px 4px;border-top:1px solid var(--pt-blue-line);
+  background:linear-gradient(180deg, var(--pt-bg-a35), rgba(0,0,0,0));
+}
+body.pa-theme .cll-alert .cll-alert-buttons>button{
+  all:unset;
+  cursor:pointer;
+  padding:7px 11px;
+  border-radius:10px;
+  font-weight:700;
+  font-size:12.5px;
+
+  border:1px solid var(--pt-btn-border);
+  box-shadow:
+    0 2px 10px var(--pt-black-a35),
+    0 0 14px var(--pt-btn-glow);
+
+  color:var(--pt-accent-hi);
+  background:var(--pt-grad-panel);
+  transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
+}
+body.pa-theme .cll-alert .cll-alert-buttons>button:hover{
+  border-color:var(--pt-btn-border-hover);
+  box-shadow:
+    0 6px 18px var(--pt-black-a55),
+    0 0 18px var(--pt-btn-glow-strong);
+  transform:translateY(-1px);
+}
+
+body.pa-theme .cll-alert .cll-alert-buttons>button:focus-visible{
+  outline:none;
+  border-color:var(--pt-btn-border-focus);
+  box-shadow:
+    0 0 0 2px var(--pt-btn-border-focus),
+    0 0 22px var(--pt-btn-glow-strong);
+}
+
+body.pa-theme .cll-alert .cll-alert-buttons>button:active{
+  transform:translateY(0);
+  box-shadow:
+    0 2px 10px var(--pt-black-a55),
+    0 0 12px var(--pt-btn-glow);
+}
+body.pa-theme #cll-ok{color:var(--pt-text-yellow);text-shadow:0 0 8px var(--pt-green-a35);}
+body.pa-theme #cll-notify,body.pa-theme #cll-reply{color:var(--pt-accent-hi);text-shadow:0 0 8px var(--pt-accent-a45);}
+
+.character-bars-light-mode .hero-hp-top-progress-bar-light-mode .inner,
+.hero-hp-progress-bar.hero-progress-bar-light-mode .inner{
+  background:linear-gradient(90deg, var(--pt-accent-a25), var(--pt-accent-hi))!important;
+  box-shadow:inset 0 0 6px var(--pt-black-a45),0 0 10px var(--pt-accent-a45)!important;
+}
+.character-bars-light-mode .hero-exp-top-progress-bar-light-mode .inner,
+.hero-exp-progress-bar.hero-progress-bar-light-mode .inner{
+  background:linear-gradient(90deg, var(--pt-green-a18), var(--pt-green-a55))!important;
+  box-shadow:inset 0 0 6px var(--pt-black-a45),0 0 8px var(--pt-green-a32)!important;
+}
+.character-bars-light-mode .value,
+.hero-progress-bar-light-mode .value{color:var(--pt-text)!important;text-shadow:0 0 6px var(--pt-black-a60);}
+
+.hp-indicator-wrapper .hpp .value{
+  color:var(--pt-accent-hi)!important;
+  text-shadow:0 0 10px var(--pt-accent-a60),0 0 2px var(--pt-black);
+  font-weight:800;
+}
+.hp-indicator-wrapper .glass{
+  background:radial-gradient(120% 100% at 50% 20%, var(--pt-accent-a22), var(--pt-accent-a06))!important;
+  border:1px solid var(--pt-blue-line)!important;border-radius:50%!important;
+  box-shadow:inset 0 8px 20px var(--pt-black-a45),0 0 20px var(--pt-accent-a45)!important;
+}
+
+.equipment-wrapper{position:relative!important;border:none!important;padding:0!important;box-shadow:none!important;}
+.equipment-wrapper .equipment-wrapper-outline,.equipment-wrapper .equipment-outline{display:none!important;}
+.equipment-wrapper::before{
+  content:"";position:absolute;inset:0;
+  border:1px solid var(--pt-blue-line);border-radius:12px;
+  box-shadow:inset 0 0 10px var(--pt-blue-line-soft),0 6px 20px var(--pt-black-a45);
+  pointer-events:none;
+}
+.equipment-wrapper .eq-slot{
+  background:repeating-linear-gradient(to right, var(--pt-blue-line-soft) 0 1px, transparent 1px 32px),repeating-linear-gradient(to bottom, var(--pt-blue-line-soft) 0 1px, transparent 1px 32px)!important;
+  box-shadow:inset 0 0 8px var(--pt-blue-soft-a10),0 0 0 1px var(--pt-blue-line-soft);
+  border-radius:8px;
+}
+.equipment-wrapper .eq-slot .item{border-radius:6px;}
+
+.interface-layer{
+  border:5px solid var(--pt-blue-line)!important;
+  box-shadow:0 0 20px var(--pt-navy-glow-soft),0 0 40px var(--pt-navy-glow-mid),0 0 70px var(--pt-navy-glow-strong)!important;
+}
+.game-window-positioner .inventory_wrapper .inventory-grid-bg,
+.game-window-positioner .character_wrapper .equipment-wrapper{position:relative!important;left:10px!important;}
+
+.border{background:none!important;background-color:transparent!important;background-image:none!important;}
+
+body.pa-theme .slots.left,
+body.pa-theme .slots.right{
+  background:var(--pt-grad-panel-glass)!important;
+  border:1px solid var(--pt-blue-line)!important;
+  box-shadow:0 8px 26px var(--pt-black-a45),inset 0 0 0 1px var(--pt-blue-line-soft)!important;
+  border-radius:12px!important;
+}
+body.pa-theme .slots .usable-slot{
+  box-sizing:border-box!important;
+  border-radius:8px!important;
+  background:repeating-linear-gradient(to right, var(--pt-blue-line-soft) 0 1px, transparent 1px 32px),repeating-linear-gradient(to bottom, var(--pt-blue-line-soft) 0 1px, transparent 1px 32px)!important;
+  box-shadow:inset 0 0 8px var(--pt-blue-soft-a10),0 0 0 1px var(--pt-blue-line-soft)!important;
+  border:1px solid var(--pt-blue-line)!important;
+  transition:box-shadow .15s ease,transform .15s ease,border-color .15s ease!important;
+  cursor:pointer;
+}
+body.pa-theme .slots .usable-slot:hover{
+  box-shadow:inset 0 0 10px rgba(0,0,0,.35),0 0 0 1px var(--pt-blue-line),0 0 16px var(--pt-accent-hi-a25)!important;
+  transform:none!important;
+}
+body.pa-theme .slots .usable-slot:focus{
+  outline:none!important;
+  box-shadow:inset 0 0 10px var(--pt-black-a35),0 0 0 2px var(--pt-accent-hi),0 0 18px var(--pt-accent-a45)!important;
+}
+body.pa-theme .slots .usable-slot.ui-droppable-active{
+  border-color:var(--pt-accent-hi)!important;
+  box-shadow:inset 0 0 10px var(--pt-black-a35),0 0 0 2px var(--pt-accent-hi-a55)!important;
+}
+body.pa-theme .slots .usable-slot.ui-droppable-hover{
+  border-color:var(--pt-accent-hi)!important;
+  box-shadow:inset 0 0 12px rgba(0,0,0,.45),0 0 0 2px var(--pt-accent-hi),0 0 24px var(--pt-accent-a45)!important;
+  transform:none!important;
+}
+body.pa-theme .slots .usable-slot .item{border-radius:6px!important;box-shadow:0 0 0 1px var(--pt-white-a06);}
+
+.layer.interface-layer .positioner.top .bg,
+.layer.interface-layer .positioner.bottom .bg,
+.top-positioner .bg,
+.bottom-positioner .bg,
+.top .positioner .bg,
+.bottom .positioner .bg{
+  background-image:none!important;
+  background:var(--pt-grad-panel)!important;
+}
+.layer.interface-layer .positioner.top .bg,
+.top-positioner .bg{border-bottom:1px solid var(--pt-blue-line)!important;}
+.layer.interface-layer .positioner.bottom .bg,
+.bottom-positioner .bg{border-top:1px solid var(--pt-blue-line)!important;}
+
+.layer.interface-layer .main-column.right-column{
+  background-image:none!important;
+  background:var(--pt-grad-panel)!important;
+  border-left:1px solid var(--pt-blue-line)!important;
+  box-shadow:inset 1px 0 0 var(--pt-blue-line-soft)!important;
+}
+
+.chat-message-wrapper .link{color:var(--pt-accent-hi)!important;text-decoration:underline;}
+.chat-message-wrapper .scrollbar-wrapper .background{background:var(--pt-white-a06)!important;}
+
+.tip-wrapper[data-item-type="t-leg"]{box-shadow:0 0 15px 6px var(--pt-tip-red-glow);border:1px solid var(--pt-tip-red-border);}
+.tip-wrapper[data-item-type="t-her"]{box-shadow:0 0 15px 6px var(--pt-tip-blue-glow);border:1px solid var(--pt-tip-blue-border);}
+.tip-wrapper[data-item-type="t-uniupg"]{box-shadow:0 0 15px 6px var(--pt-tip-gold-glow);border:1px solid var(--pt-tip-gold-border);}
+.tip-wrapper[data-item-type="t-upgraded"]{box-shadow:0 0 15px 6px var(--pt-tip-pink-glow);border:1px solid var(--pt-tip-pink-border);}
+.tip-wrapper[data-item-type="t-norm"]{box-shadow:0 0 15px 6px var(--pt-tip-silver-glow);border:1px solid var(--pt-tip-silver-border);}
+
+body.pa-theme .cll-modal{
+  border:1px solid var(--pt-blue-line)!important;
+  box-shadow:0 10px 40px var(--pt-black-a55),inset 0 0 0 1px var(--pt-blue-line-soft)!important;
+  background:linear-gradient(180deg, var(--pt-panel-a96), var(--pt-panel-a90))!important;
+  border-radius:14px!important;
+}
+body.pa-theme .cll-modal .cll-modal-title{
+  color:var(--pt-text)!important;font-weight:700!important;padding:8px 12px!important;
+  border-bottom:1px solid var(--pt-blue-line)!important;
+}
+.cll-modal-content{
+overflow-y:auto!important;
+}
+body.pa-theme .cll-modal .cll-modal-content{padding:10px 12px!important;}
+body.pa-theme .cll-modal #cll-message-textarea{
+  width:100%!important;
+  min-height:90px!important;
+  resize:vertical!important;
+
+  background:var(--pt-bg-a65)!important;
+  border:1px solid var(--pt-blue-line)!important;
+  border-radius:10px!important;
+
+  color:var(--pt-flash)!important;
+  caret-color:var(--pt-flash)!important;
+  padding:10px 12px!important;
+
+  box-shadow:
+    inset 0 0 10px var(--pt-black-a45),
+    0 0 16px var(--pt-msg-glow)!important;
+
+  transition: box-shadow .12s ease, border-color .12s ease;
+}
+body.pa-theme .cll-modal #cll-message-textarea:focus{
+  outline:none!important;
+  border-color:var(--pt-msg-focus-ring)!important;
+  box-shadow:
+    inset 0 0 10px var(--pt-black-a45),
+    0 0 22px var(--pt-msg-glow-strong),
+    0 0 0 2px var(--pt-msg-focus-ring)!important;
+}
+body.pa-theme .cll-modal .cll-modal-buttons{
+  display:flex!important;gap:8px!important;padding:10px 12px 12px 12px!important;
+  border-top:1px solid var(--pt-blue-line)!important;justify-content:flex-end!important;
+  background:linear-gradient(180deg, var(--pt-bg-a35), rgba(0,0,0,0))!important;
+}
+body.pa-theme .cll-modal #cll-message-send,
+body.pa-theme .cll-modal #cll-message-cancel{
+  all:unset;cursor:pointer;padding:7px 11px;border-radius:10px;font-weight:700;font-size:12.5px;
+  border:1px solid var(--pt-blue-line);box-shadow:0 2px 10px var(--pt-black-a35);
+  background:var(--pt-grad-panel);color:var(--pt-accent-hi);
+}
+body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
+
+
+.header-title{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:10px !important;
+  padding:4px 8px !important;
+  background-color:var(--pt-panel2) !important;
+  border:1px solid var(--pt-text-yellow) !important;
+  border-radius:5px !important;
+  color:var(--pt-text-yellow) !important;
+  line-height:1 !important;
+}
+
+.stats-button{display:inline-block;position:relative;z-index:2;}
+
+.stats-button .button.small.green.stats-expand{
+  --btn-radius:10px;
+  --btn-border:var(--pt-blue-line);
+  --btn-bg1:linear-gradient(180deg, var(--pt-panel-a96), var(--pt-panel-a88));
+  --btn-bg2:linear-gradient(180deg, var(--pt-green-a25), var(--pt-green-a10));
+  --btn-glow:0 6px 18px var(--pt-black-a45),0 0 14px var(--pt-green-a18);
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:6px 12px;
+  min-height:28px;
+  border-radius:var(--btn-radius);
+  border:1px solid var(--btn-border);
+  box-shadow:var(--btn-glow);
+  cursor:pointer;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
+  background:var(--btn-bg1),var(--btn-bg2);
+}
+.stats-button .button.small.green.stats-expand .background{
+  position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(120% 120% at 50% 0%, var(--pt-green-a16), rgba(0,0,0,0) 60%),linear-gradient(180deg, var(--pt-accent-a10), rgba(0,0,0,0));
+  box-shadow:inset 0 0 0 1px var(--pt-green-a15);
+}
+.stats-button .button.small.green.stats-expand .label{
+  position:relative;z-index:1;color:var(--pt-text-yellow);
+  font-weight:700;font-size:12.5px;letter-spacing:.3px;
+  text-shadow:0 0 8px var(--pt-green-a35);line-height:1;padding-right:14px;
+}
+.stats-button .button.small.green.stats-expand .label::after{
+  content:"▸";position:absolute;right:0;top:50%;transform:translateY(-50%) rotate(0deg);
+  font-weight:900;opacity:.9;transition:transform .15s ease,opacity .15s ease;
+}
+.stats-button .button.small.green.stats-expand:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 22px var(--pt-black-a55),0 0 18px var(--pt-green-a32);
+  border-color:var(--pt-green-a55);
+}
+.stats-button .button.small.green.stats-expand:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 2px var(--pt-accent-hi-a45),0 0 22px var(--pt-green-a45);
+}
+.stats-button .button.small.green.stats-expand:active{
+  transform:translateY(0);
+  box-shadow:0 4px 12px var(--pt-black-a55),0 0 10px var(--pt-green-a25);
+}
+.stats-button .button.small.green.stats-expand.is-open .label::after,
+.stats-button .button.small.green.stats-expand[aria-expanded="true"] .label::after{
+  transform:translateY(-50%) rotate(90deg);opacity:1;
+}
+.stats-button .button.small.green.stats-expand.is-open,
+.stats-button .button.small.green.stats-expand[aria-expanded="true"]{
+  border-color:var(--pt-green-a70);
+  box-shadow:0 8px 22px var(--pt-black-a55),0 0 22px var(--pt-green-a38);
+}
+.stats-button .button.small.green.stats-expand.is-disabled,
+.stats-button .button.small.green.stats-expand[aria-disabled="true"]{
+  opacity:.55;filter:grayscale(.25);pointer-events:none;box-shadow:none;
+}
+
+.chat-channel-card-wrapper.tabs-nav{
+  border:none!important;
+  box-shadow:inset 0 0 0 1px var(--pt-blue-line),0 8px 26px var(--pt-black-a45),inset 0 0 0 1px var(--pt-blue-line-soft);
+}
+.chat-channel-card.card{
+  border:none!important;
+  --ringW:1px;
+  --ringC:var(--pt-channel-ring);
+  box-shadow:
+    inset 0 0 0 var(--ringW) var(--ringC),
+    0 4px 14px var(--pt-black-a45),
+    inset 0 0 0 1px var(--pt-blue-line-soft);
+  transition:box-shadow .12s ease,background .12s ease,transform .12s ease;
+}
+
+.chat-channel-card.card:hover{
+  --ringW:1.5px;
+  --ringC:var(--pt-btn-border-hover);
+  box-shadow:
+    inset 0 0 0 var(--ringW) var(--ringC),
+    0 8px 22px var(--pt-black-a55),
+    0 0 18px var(--pt-btn-glow-strong);
+  transform:translateY(-1px);
+}
+
+.chat-channel-card.card:focus-visible{
+  outline:none;
+  --ringW:2px;
+  --ringC:var(--pt-btn-border-focus);
+  box-shadow:
+    inset 0 0 0 var(--ringW) var(--ringC),
+    0 0 0 2px var(--pt-accent-hi-a25),
+    0 0 22px var(--pt-btn-glow-strong);
+}
+
+.chat-channel-card.card.active{
+  --ringW:2px;
+  --ringC:var(--pt-channel-ring-active);
+  box-shadow:
+    inset 0 0 0 var(--ringW) var(--ringC),
+    0 10px 26px var(--pt-black-a55),
+    0 0 22px var(--pt-channel-glow-active);
+}
+
+.chat-channel-card .chat-channel-not-read-counter{
+  border:none!important;
+  box-shadow:
+    inset 0 0 0 1px var(--pt-white-a25),
+    0 6px 16px var(--pt-black-a45),
+    0 0 12px var(--pt-channel-unread-glow);
+}
+`;
+
+        // ---------- kolory ----------
+        function hexToRgb(hex) {
+            let h = String(hex || '').trim().replace('#', '');
+            if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+            if (!/^[0-9a-f]{6}$/i.test(h)) return [0, 0, 0];
+            return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+        }
+        function rgbToHex(rgb) {
+            return '#' + rgb.map((n) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, '0')).join('').toUpperCase();
+        }
+        function rgba(hex, a) {
+            const [r, g, b] = hexToRgb(hex);
+            return `rgba(${r},${g},${b},${a})`;
+        }
+        function mix(a, b, t) {
+            const x = hexToRgb(a);
+            const y = hexToRgb(b);
+            return rgbToHex(x.map((v, i) => v + (y[i] - v) * t));
+        }
+        function toHsl(hex) {
+            const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
+            const max = Math.max(r, g, b);
+            const min = Math.min(r, g, b);
+            const l = (max + min) / 2;
+            let h = 0;
+            let s = 0;
+            if (max !== min) {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+                else if (max === g) h = (b - r) / d + 2;
+                else h = (r - g) / d + 4;
+                h *= 60;
+            }
+            return [h, s * 100, l * 100];
+        }
+        function fromHsl(h, s, l) {
+            h = ((h % 360) + 360) % 360;
+            s /= 100;
+            l /= 100;
+            const k = (n) => (n + h / 30) % 12;
+            const a = s * Math.min(l, 1 - l);
+            const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+            return rgbToHex([f(0) * 255, f(8) * 255, f(4) * 255]);
+        }
+        const isHex = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''));
+
+        // ---------- paleta ----------
+        function basePalette() {
+            if (state.ptPreset === 'custom') {
+                const c = state.ptCustom || {};
+                const def = PRESETS[0];
+                return {
+                    bg: isHex(c.bg) ? c.bg : def.bg,
+                    panel: isHex(c.panel) ? c.panel : def.panel,
+                    accent: isHex(c.accent) ? c.accent : def.accent,
+                    text: isHex(c.text) ? c.text : def.text,
+                };
+            }
+            return PRESETS.find((p) => p.id === state.ptPreset) || PRESETS[0];
+        }
+
+        function palette() {
+            const p = basePalette();
+            const [h, s, l] = toHsl(p.accent);
+            return {
+                bg: p.bg,
+                panel: p.panel,
+                panel2: p.panel2 || mix(p.panel, p.text, 0.06),
+                accent: p.accent,
+                accentHi: p.accentHi || fromHsl(h, Math.min(100, s + 17), Math.min(78, Math.max(55, l + 24))),
+                text: p.text,
+                hl: p.hl || fromHsl(h + 50, 100, 65),
+            };
+        }
+
+        function buildVars(p) {
+            const v = [];
+            const add = (name, val) => v.push(`  --pt-${name}:${val};`);
+            add('bg', p.bg);
+            add('panel', p.panel);
+            add('panel2', p.panel2);
+            add('accent', p.accent);
+            add('accent-hi', p.accentHi);
+            add('text', p.text);
+            add('text-yellow', p.hl);
+            add('flash', '#FFFFFF');
+            add('black', '#000000');
+            [35, 45, 55, 60].forEach((a) => add(`black-a${a}`, `rgba(0,0,0,.${a})`));
+            [['03', '.03'], ['06', '.06'], ['25', '.25']].forEach(([n, a]) => add(`white-a${n}`, `rgba(255,255,255,${a})`));
+            add('blue-line', rgba(p.accentHi, 0.28));
+            add('blue-line-soft', rgba(p.accentHi, 0.12));
+            add('blue-soft-a10', rgba(p.accentHi, 0.10));
+            [['05', 0.05], ['25', 0.25], ['35', 0.35], ['40', 0.40], ['45', 0.45], ['55', 0.55], ['65', 0.65]]
+                .forEach(([n, a]) => add(`bg-a${n}`, rgba(p.bg, a)));
+            [78, 88, 90, 92, 96].forEach((a) => add(`panel-a${a}`, rgba(p.panel, a / 100)));
+            [95, 96].forEach((a) => add(`panel2-a${a}`, rgba(p.panel2, a / 100)));
+            [['05', 0.05], ['06', 0.06], ['10', 0.10], ['18', 0.18], ['22', 0.22], ['25', 0.25], ['35', 0.35], ['45', 0.45], ['60', 0.60]]
+                .forEach(([n, a]) => add(`accent-a${n}`, rgba(p.accent, a)));
+            [25, 45, 55].forEach((a) => add(`accent-hi-a${a}`, rgba(p.accentHi, a / 100)));
+            [10, 15, 16, 18, 25, 32, 35, 38, 45, 55, 70].forEach((a) => add(`green-a${a}`, rgba(p.hl, a / 100)));
+            add('navy-glow-strong', rgba(p.accentHi, 0.65));
+            add('navy-glow-mid', rgba(p.accentHi, 0.40));
+            add('navy-glow-soft', rgba(p.accentHi, 0.20));
+            add('btn-border', 'var(--pt-blue-line)');
+            add('btn-border-hover', rgba(p.accentHi, 0.65));
+            add('btn-border-focus', rgba(p.accentHi, 0.85));
+            add('btn-glow', rgba(p.accentHi, 0.18));
+            add('btn-glow-strong', rgba(p.accentHi, 0.32));
+            add('msg-glow', rgba(p.accentHi, 0.22));
+            add('msg-glow-strong', rgba(p.accentHi, 0.38));
+            add('msg-focus-ring', rgba(p.accentHi, 0.55));
+            add('channel-ring', rgba(p.accentHi, 0.40));
+            add('channel-ring-active', rgba(p.accentHi, 0.70));
+            add('channel-glow-active', rgba(p.accentHi, 0.35));
+            add('channel-unread-glow', rgba(p.accentHi, 0.35));
+            add('grad-panel', 'linear-gradient(180deg, var(--pt-panel2), var(--pt-panel))');
+            add('grad-panel-glass', 'linear-gradient(180deg, var(--pt-panel-a92), var(--pt-panel-a78))');
+            add('grad-header', 'linear-gradient(180deg, var(--pt-accent-a18), var(--pt-accent-a05)), linear-gradient(180deg, var(--pt-panel2), var(--pt-panel))');
+            return `:root{\n${v.join('\n')}${TIP_VARS}\n}`;
+        }
+
+        // ---------- cienie: reguły wyłączające box-shadow, budowane z CSS motywu ----------
+        function groupForSelector(sel) {
+            if (sel.includes('.tip-wrapper')) return 'pa-ns-tips';
+            if (sel.trim() === '.interface-layer') return 'pa-ns-frame';
+            if (/button|btn|slot|card|stats-expand|\.item\b|glass|\.inner\b|counter|textarea|cll-min-lvl|cll-max-lvl|cll-hot-img/.test(sel)) return 'pa-ns-btn';
+            return 'pa-ns-win';
+        }
+        function prefixSelector(sel, cls) {
+            sel = sel.trim();
+            if (sel.startsWith('body.pa-theme')) return sel.replace('body.pa-theme', `body.pa-theme.${cls}`);
+            return `body.${cls} ${sel}`;
+        }
+        let shadowCssCache = '';
+        function buildShadowCss() {
+            if (shadowCssCache) return shadowCssCache;
+            const out = [];
+            const re = /([^{}]+)\{([^{}]*)\}/g;
+            let m;
+            while ((m = re.exec(CSS))) {
+                const body = m[2];
+                if (!/(^|[;{\s])box-shadow\s*:/.test(body)) continue;
+                const sels = m[1].split(',').map((x) => x.trim()).filter(Boolean);
+                sels.forEach((sel) => {
+                    const cls = groupForSelector(sel);
+                    out.push(`${prefixSelector(sel, cls)}{box-shadow:none!important;}`);
+                });
+            }
+            out.push('body.pa-ns-btn .widget-in-interface-bar.widget-button .icon{filter:none!important;}');
+            shadowCssCache = out.join('\n');
+            return shadowCssCache;
+        }
+
+        function ensureStyle(id, text) {
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('style');
+                el.id = id;
+                (document.head || document.documentElement).appendChild(el);
+            }
+            if (el.textContent !== text) el.textContent = text;
+        }
+
+        function apply() {
+            const body = document.body;
+            if (!state.ptEnabled) {
+                [STYLE_ID, VARS_ID, SHADOW_ID].forEach((id) => document.getElementById(id)?.remove());
+                if (body) {
+                    body.classList.remove('pa-theme');
+                    SHADOW_GROUPS.forEach((g) => body.classList.remove(g.cls));
+                }
+                return;
+            }
+            ensureStyle(VARS_ID, buildVars(palette()));
+            ensureStyle(STYLE_ID, CSS);
+            ensureStyle(SHADOW_ID, buildShadowCss());
+            if (body) {
+                body.classList.add('pa-theme');
+                SHADOW_GROUPS.forEach((g) => body.classList.toggle(g.cls, state[g.key] === false));
+            }
+        }
+
+        // ---------- ustawienia w karcie dodatku ----------
+        function settingsHtml() {
+            const swatch = (p) => `
+                <button type="button" class="pa-pt-preset" data-pa-pt-preset="${p.id}" title="${p.name}">
+                  <span class="pa-pt-dots">${[p.bg, p.panel, p.accent, p.text].map((c) => `<i style="background:${c}"></i>`).join('')}</span>
+                  <span>${p.name}</span>
+                </button>`;
+            const custom = `
+                <button type="button" class="pa-pt-preset" data-pa-pt-preset="custom" title="Własna paleta">
+                  <span class="pa-pt-dots" data-pa-pt-custom-dots></span>
+                  <span>Własny</span>
+                </button>`;
+            return `
+              <div class="pa-sub">Paleta kolorów</div>
+              <div class="pa-pt-presets">${PRESETS.map(swatch).join('')}${custom}</div>
+              <div class="pa-pt-custom" data-pa-pt-custom>
+                <div class="pa-pt-colors">
+                  ${CUSTOM_KEYS.map(([k, label]) => `<label class="pa-pt-color"><input type="color" data-pa-pt-color="${k}"><span>${label}</span></label>`).join('')}
+                </div>
+                <p class="pa-hint">Jaśniejszy akcent, linie, poświaty i kolor wyróżnień są wyliczane automatycznie z tych 4 kolorów. Zmiany widać od razu.</p>
+              </div>
+              <div class="pa-sub">Cienie (box-shadow)</div>
+              ${SHADOW_GROUPS.map((g) => `<label class="pa-check"><input type="checkbox" data-pa-opt="${g.key}"> ${g.label}</label>`).join('')}
+              <p class="pa-hint">Kolory ramek i poświat tipów przedmiotów (legendarne, heroiczne, unikatowe, ulepszone, zwykłe) są zawsze zachowane.</p>`;
+        }
+
+        function renderSettings(modal) {
+            if (!modal) return;
+            const active = state.ptPreset || PRESETS[0].id;
+            modal.querySelectorAll('[data-pa-pt-preset]').forEach((b) => {
+                b.classList.toggle('pa-on', b.getAttribute('data-pa-pt-preset') === active);
+            });
+            const box = modal.querySelector('[data-pa-pt-custom]');
+            if (box) box.classList.toggle('pa-open', active === 'custom');
+            const c = state.ptCustom || {};
+            const def = PRESETS[0];
+            modal.querySelectorAll('[data-pa-pt-color]').forEach((input) => {
+                const k = input.getAttribute('data-pa-pt-color');
+                const val = isHex(c[k]) ? c[k] : def[k];
+                if (document.activeElement !== input) input.value = val.toLowerCase();
+            });
+            const dots = modal.querySelector('[data-pa-pt-custom-dots]');
+            if (dots) {
+                dots.innerHTML = CUSTOM_KEYS.map(([k]) => `<i style="background:${isHex(c[k]) ? c[k] : def[k]}"></i>`).join('');
+            }
+        }
+
+        function setPreset(id) {
+            if (id === 'custom') {
+                const c = state.ptCustom || {};
+                // pierwszy raz: własna paleta startuje od aktualnie wybranej
+                if (!CUSTOM_KEYS.every(([k]) => isHex(c[k]))) {
+                    const from = basePalette();
+                    state.ptCustom = {};
+                    CUSTOM_KEYS.forEach(([k]) => { state.ptCustom[k] = from[k]; });
+                }
+            } else if (!PRESETS.some((p) => p.id === id)) {
+                return;
+            }
+            state.ptPreset = id;
+            saveSettings();
+            apply();
+            applyTheme();
+        }
+
+        function setCustomColor(key, value) {
+            if (!isHex(value) || !CUSTOM_KEYS.some(([k]) => k === key)) return;
+            state.ptCustom = Object.assign({}, state.ptCustom || {}, { [key]: value.toUpperCase() });
+            state.ptPreset = 'custom';
+            saveSettings();
+            apply();
+            applyTheme();
+        }
+
+        return { apply, palette, settingsHtml, renderSettings, setPreset, setCustomColor };
+    })();
+
+    // ------------------------------------------------------------------
     //  KATALOG DODATKÓW (karty w modalu)
     // ------------------------------------------------------------------
     const ADDONS = [
@@ -1392,12 +2210,24 @@ div[data-chat-message-id] a {
               <label class="pa-field"><span>Box shadow okna</span><input type="text" data-pa-huge-box-shadow placeholder="0 10px 40px rgba(0,0,0,.55)"></label>
               <div class="pa-row"><button type="button" class="pa-btn pa-primary" data-pa-huge-save>Zapisz</button></div>`,
         },
+        {
+            key: 'theme',
+            stateKey: 'ptEnabled',
+            icon: '🎨',
+            name: 'Motyw',
+            tag: 'Interfejs',
+            beta: true,
+            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 5 gotowych palet albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
+            settings: () => ptTheme.settingsHtml(),
+        },
     ];
 
     const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
     function renderAddonCard(addon) {
-        const tag = `<span class="pa-tag${addon.isNew ? ' pa-new' : ''}">${addon.isNew ? 'Nowy' : addon.tag}</span>`;
+        const tag = addon.beta
+            ? '<span class="pa-tag pa-beta">Beta</span>'
+            : `<span class="pa-tag${addon.isNew ? ' pa-new' : ''}">${addon.isNew ? 'Nowy' : addon.tag}</span>`;
         const gear = addon.settings ? `<button type="button" class="pa-gear" data-pa-gear="${addon.key}">Ustawienia ▾</button>` : '';
         const settings = addon.settings
             ? `<div class="pa-card-settings" data-pa-settings="${addon.key}">${addon.settings()}</div>`
@@ -1469,7 +2299,9 @@ div[data-chat-message-id] a {
         </div>
         <div class="pa-dialog-body">
           <div class="pa-section-title">Dodatki</div>
-          <div class="pa-grid">${ADDONS.map(renderAddonCard).join('')}</div>
+          <div class="pa-grid">${ADDONS.filter((a) => !a.beta).map(renderAddonCard).join('')}</div>
+          <div class="pa-section-title pa-beta-title" data-pa-beta-title>Beta <span>– dodatki w fazie testów, mogą jeszcze zawierać błędy</span></div>
+          <div class="pa-grid" data-pa-beta-grid>${ADDONS.filter((a) => a.beta).map(renderAddonCard).join('')}</div>
           <div class="pa-empty-search" data-pa-empty>Brak dodatków pasujących do wyszukiwania.</div>
           <div class="pa-coffee-footer">
             <a class="pa-coffee-btn" href="https://buycoffee.to/darksad" target="_blank" rel="noopener noreferrer">☕ Postaw kawę</a>
@@ -1663,6 +2495,7 @@ div[data-chat-message-id] a {
         berserk.renderSettings(modal);
         builds.renderSettings(modal);
         whoResize.renderSettings(modal);
+        ptTheme.renderSettings(modal);
 
         // notyfikator
         const notifier = root.querySelector('[data-pa-notifier]');
@@ -2081,6 +2914,11 @@ div[data-chat-message-id] a {
             berserk.setEnabled(on);
             showToast(on ? 'Berserker: ikonka dodana obok ekwipunku' : 'Berserker wyłączony');
         },
+        theme(on) {
+            ptTheme.apply();
+            applyTheme();
+            showToast(on ? 'Motyw włączony' : 'Motyw wyłączony');
+        },
         who(on) {
             whoResize.setEnabled(on);
             showToast(on ? 'Złap prawy dolny róg okna „Gracze na mapie”' : 'Zmiana rozmiaru okna graczy wyłączona');
@@ -2116,6 +2954,9 @@ div[data-chat-message-id] a {
             card.classList.toggle('pa-hidden', !hit);
             if (hit) visible++;
         });
+        const betaVisible = modal.querySelectorAll('[data-pa-beta-grid] [data-pa-card]:not(.pa-hidden)').length;
+        const betaTitle = modal.querySelector('[data-pa-beta-title]');
+        if (betaTitle) betaTitle.style.display = betaVisible ? '' : 'none';
         modal.querySelector('[data-pa-empty]').style.display = visible ? 'none' : 'block';
     }
 
@@ -2180,6 +3021,15 @@ div[data-chat-message-id] a {
                 return;
             }
 
+            const ptPreset = event.target.closest('[data-pa-pt-preset]');
+            if (ptPreset) {
+                event.preventDefault();
+                ptTheme.setPreset(ptPreset.getAttribute('data-pa-pt-preset'));
+                if (!state.ptEnabled) showToast('Paleta zapisana – włącz Motyw, żeby ją zobaczyć');
+                syncUi(root);
+                return;
+            }
+
             const chip = event.target.closest('[data-pa-bprof-id]');
             if (chip) {
                 event.preventDefault();
@@ -2218,6 +3068,14 @@ div[data-chat-message-id] a {
             }
         });
 
+        // --- motyw: kolory własnej palety (podgląd na żywo) ---
+        modal.addEventListener('input', (event) => {
+            const input = event.target;
+            if (!input.matches('[data-pa-pt-color]')) return;
+            ptTheme.setCustomColor(input.getAttribute('data-pa-pt-color'), input.value);
+            ptTheme.renderSettings(modal);
+        });
+
         // --- proste opcje ---
         modal.addEventListener('change', (event) => {
             const input = event.target;
@@ -2229,6 +3087,7 @@ div[data-chat-message-id] a {
                 if (key.startsWith('titan')) titanHelper.setOptions(getTitanOptions());
                 if (key.startsWith('builds')) builds.render();
                 if (key.startsWith('mm')) miniMap.refresh();
+                if (key.startsWith('pt')) ptTheme.apply();
                 return;
             }
 
@@ -6111,6 +6970,7 @@ function observeChatLinks() {
     function init() {
         try {
             injectStyles();
+            ptTheme.apply();
             applyTheme();
 
             const root = createRoot();
