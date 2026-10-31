@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.7';
+    const PANEL_VERSION = '5.8';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -6394,6 +6394,7 @@ function observeChatLinks() {
         let watchTimer = null;
         let hiddenGameWin = null;
         let search = { text: '', coords: null };
+        let markerTimer = null;
         let hoverTile = null;
 
         // ---------- zbieranie danych ----------
@@ -6441,6 +6442,12 @@ function observeChatLinks() {
             };
             for (const k in npcs) delete npcs[k];
             for (const k in graves) delete graves[k];
+            // znacznik koordów nie przechodzi na nową mapę (także ten wpisany w wyszukiwarkę)
+            if (search.coords) {
+                search = { text: search.text, coords: null };
+                const box = el?.querySelector?.('[data-mm-search]');
+                if (box && /^\s*\d+\s*[,; ]\s*\d+\s*$/.test(box.value)) box.value = '';
+            }
             for (const k in others) delete others[k];
             gws = [];
             spawns = [];
@@ -6769,6 +6776,7 @@ function observeChatLinks() {
                     });
                 }
             }
+            if (search.temp && Date.now() > search.temp) search = { text: search.text, coords: null };
             if (search.coords) list.push({ id: 'marker', x: search.coords[0], y: search.coords[1], nick: `Koordy ${search.coords[0]},${search.coords[1]}`, kind: 'marker' });
             return list;
         }
@@ -6908,7 +6916,11 @@ function observeChatLinks() {
                     approach(x, y);
                 } else if (row) {
                     const [x, y] = row.getAttribute('data-mm-row').split(',').map(Number);
-                    search = { text: '', coords: [x, y] };
+                    // krótkie podświetlenie miejsca (4 s); drugie kliknięcie tego samego wiersza wyłącza
+                    const same = search.temp && search.coords && search.coords[0] === x && search.coords[1] === y;
+                    search = same ? { text: search.text, coords: null } : { text: search.text, coords: [x, y], temp: Date.now() + 4000 };
+                    clearTimeout(markerTimer);
+                    if (!same) markerTimer = setTimeout(renderObjects, 4100);
                     renderObjects();
                 }
             });
