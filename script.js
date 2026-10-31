@@ -769,10 +769,10 @@ div[data-chat-message-id] a {
     .pa-lc-badge.pa-lc-low { color: #ff6b6b; border-color: rgba(255,107,107,.55); }
     .pa-lc-badge.pa-lc-off { color: #8a90a0; }
     @keyframes paLcLegPulse {
-      0%, 100% { filter: drop-shadow(0 0 2px rgba(255,111,0,.35)); }
-      50% { filter: drop-shadow(0 0 7px rgba(255,111,0,.95)) brightness(1.08); }
+      0%, 100% { scale: 1; }
+      50% { scale: 1.15; }
     }
-    .pa-lc-leg { animation: paLcLegPulse 1.8s ease-in-out infinite; }
+    .pa-lc-leg { animation: paLcLegPulse 1.4s ease-in-out infinite; transform-origin: 50% 50%; will-change: scale; z-index: 2; }
     .pa-empty-search { display: none; padding: 30px 0; text-align: center; color: var(--pa-muted); font-size: 12px; }
     .pa-coffee-footer { display: flex; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--pa-border); }
     .pa-coffee-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: var(--pa-accent); color: #1a1408 !important; font: 600 12px var(--pa-font); text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
