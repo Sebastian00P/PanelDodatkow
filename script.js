@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.5';
+    const PANEL_VERSION = '5.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -70,6 +70,8 @@
         ptShTips: true,
         // szansa na łup (BETA)
         lcEnabled: false,
+        // koszty ulepszeń
+        ucEnabled: false,
         lcPulse: true,
     };
 
@@ -95,7 +97,7 @@
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
-        'lcEnabled', 'lcPulse',
+        'lcEnabled', 'lcPulse', 'ucEnabled',
     ];
 
     function loadSettings() {
@@ -806,12 +808,12 @@ div[data-chat-message-id] a {
       background: repeating-conic-gradient(from 0deg, rgba(255,205,90,.55) 0deg 7deg, rgba(255,205,90,0) 7deg 20deg);
       -webkit-mask: radial-gradient(circle, #000 12%, rgba(0,0,0,.6) 32%, transparent 62%);
       mask: radial-gradient(circle, #000 12%, rgba(0,0,0,.6) 32%, transparent 62%);
-      animation: paLcRaysSpin 22s linear infinite, paLcFadeIn .6s ease-out;
+      animation: paLcRaysSpin 22s linear infinite, paLcFadeIn .2s ease-out;
     }
     .pa-lc-rays-glow {
       width: 520px; height: 520px; margin: -260px 0 0 -260px;
       background: radial-gradient(circle, rgba(255,215,110,.55) 0%, rgba(255,150,40,.25) 35%, transparent 70%);
-      animation: paLcGlowPulse 1.4s ease-in-out infinite, paLcFadeIn .6s ease-out;
+      animation: paLcGlowPulse 1.4s ease-in-out infinite, paLcFadeIn .2s ease-out;
     }
     @keyframes paLcRaysSpin { to { transform: rotate(360deg); } }
     @keyframes paLcGlowPulse { 0%, 100% { opacity: .75; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
@@ -1375,6 +1377,8 @@ div[data-chat-message-id] a {
             { id: 'turkus', name: 'Turkus', bg: '#04100F', panel: '#0A1C1B', accent: '#0FB3A8', text: '#E3FFFC', hl: '#9CFFF0' },
             { id: 'zloto', name: 'Złoto', bg: '#0D0B05', panel: '#18140A', accent: '#C9A227', text: '#FFF8E1', hl: '#FFE38A' },
             { id: 'mroz', name: 'Mróz', bg: '#070C12', panel: '#0E1824', accent: '#4FA9E8', text: '#EAF6FF', hl: '#BDF0FF' },
+            { id: 'krew', name: 'Krew', bg: '#140203', panel: '#240407', accent: '#FF0A1E', text: '#FFE8EA', hl: '#FFD24D', accentHi: '#FF3B4A' },
+            { id: 'szafir', name: 'Szafir', bg: '#01040F', panel: '#040C26', accent: '#0A4BFF', text: '#E8EEFF', hl: '#5CE1FF', accentHi: '#3D7BFF' },
         ];
         const CUSTOM_KEYS = [
             ['bg', 'Tło'],
@@ -2327,18 +2331,54 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     wnd.parentElement.insertBefore(rays, wnd);
                     wnd.__paLcRays = rays;
                 }
-                // promienie podążają za oknem (można je przeciągać)
-                const cx = wnd.offsetLeft + wnd.offsetWidth / 2;
-                const cy = wnd.offsetTop + wnd.offsetHeight / 2;
-                rays.style.left = `${cx}px`;
-                rays.style.top = `${cy}px`;
-                rays.style.zIndex = getComputedStyle(wnd).zIndex;
+                positionRays(wnd, rays);
             });
+            if (document.querySelector('.pa-lc-legwnd')) startFollow();
             // promienie po zamkniętych oknach
             document.querySelectorAll('.pa-lc-rays').forEach((r) => {
                 const wnd = r.nextElementSibling;
                 if (!wnd || !wnd.classList.contains('pa-lc-legwnd')) r.remove();
             });
+        }
+
+        // promienie podążają za oknem klatka po klatce (okno można przeciągać)
+        function positionRays(wnd, rays) {
+            const left = `${wnd.offsetLeft + wnd.offsetWidth / 2}px`;
+            const top = `${wnd.offsetTop + wnd.offsetHeight / 2}px`;
+            if (rays.style.left !== left) rays.style.left = left;
+            if (rays.style.top !== top) rays.style.top = top;
+            const z = wnd.style.zIndex || getComputedStyle(wnd).zIndex;
+            if (rays.style.zIndex !== z) rays.style.zIndex = z;
+        }
+
+        let followRaf = 0;
+        function startFollow() {
+            if (followRaf) return;
+            const loop = () => {
+                followRaf = 0;
+                const wnds = document.querySelectorAll('.pa-lc-legwnd');
+                if (!wnds.length) return;
+                let alive = false;
+                wnds.forEach((wnd) => {
+                    const rays = wnd.__paLcRays;
+                    const visible = wnd.isConnected && wnd.offsetParent !== null && wnd.style.display !== 'none';
+                    if (!visible) {
+                        // okno łupów zamknięte – sprzątamy od razu, bez czekania na kolejny cykl
+                        wnd.classList.remove('pa-lc-legwnd');
+                        if (rays) rays.remove();
+                        wnd.__paLcRays = null;
+                        return;
+                    }
+                    alive = true;
+                    if (rays && rays.isConnected) positionRays(wnd, rays);
+                });
+                document.querySelectorAll('.pa-lc-rays').forEach((r) => {
+                    const w = r.nextElementSibling;
+                    if (!w || !w.classList.contains('pa-lc-legwnd')) r.remove();
+                });
+                if (alive) followRaf = requestAnimationFrame(loop);
+            };
+            followRaf = requestAnimationFrame(loop);
         }
 
         function clearDom() {
@@ -2349,9 +2389,34 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         }
 
         // okno łupów sprawdzane co pół sekundy, dopóki dodatek jest włączony
+        // szybki, tani podgląd co 100 ms: pełne przeliczenie tylko gdy okno łupów się zmieniło
+        // (pojawiło / zniknęło / inne przedmioty lub decyzje), a poza tym co pół sekundy
+        let lastSig = '';
+        let lastFull = 0;
+        function lootSignature() {
+            const wnds = document.querySelectorAll('.loot-wnd');
+            if (!wnds.length) return '';
+            let sig = '';
+            wnds.forEach((w) => {
+                sig += (w.offsetParent !== null && w.style.display !== 'none') ? 'V' : 'H';
+                w.querySelectorAll('.loot-item-wrapper').forEach((it) => {
+                    sig += `${it.getAttribute('loot-id')}:${it.getAttribute('data-state')};`;
+                });
+            });
+            return sig;
+        }
+        function tick() {
+            const sig = lootSignature();
+            const now = Date.now();
+            if (sig !== lastSig || (sig && now - lastFull > 500)) {
+                lastSig = sig;
+                lastFull = now;
+                render();
+            }
+        }
         function startPoll() {
             if (pollTimer) return;
-            pollTimer = setInterval(render, 500);
+            pollTimer = setInterval(tick, 100);
         }
         function stopPoll() {
             if (pollTimer) clearInterval(pollTimer);
@@ -2408,6 +2473,127 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         }
 
         return { init, render, setEnabled };
+    })();
+
+    // ------------------------------------------------------------------
+    //  KOSZTY ULEPSZEŃ – w tipie legendarnego przedmiotu pokazuje koszt
+    //  ulepszeń +1…+5 (pkt. ulepszenia), sumę, złoto do +5 i esencję.
+    // ------------------------------------------------------------------
+    const upgradeCosts = (function () {
+        let bodyObs = null;
+
+        function calcCosts(level) {
+            const lvl = Number(level);
+            if (!lvl || lvl <= 0) return null;
+            const base = (lvl + 180) * 1000;
+            const pts = [1.0, 1.1, 1.3, 1.6, 2.0].map((m) => Math.round(base * m));
+            return {
+                pts,
+                sum: pts.reduce((a, b) => a + b, 0),
+                gold: Math.round((10 * lvl + 1300) * lvl * 60),
+                ess: Math.round((lvl / 10 + 10) * 3),
+            };
+        }
+
+        const fmt = (num) => Number(num).toLocaleString('pl-PL', { useGrouping: true }).replace(/\s/g, ' ');
+
+        function extractLevel(content) {
+            const node = content.querySelector('.tip-item-stat-lvl.level-required span');
+            const m = node && node.textContent.match(/poziom:\s*(\d+)/i);
+            return m ? Number(m[1]) : null;
+        }
+
+        function isLegendary(content) {
+            const wrapper = content.closest('.tip-wrapper');
+            if (wrapper && wrapper.getAttribute('data-item-type') === 't-leg') return true;
+            const rarity = content.querySelector('.tip-item-stat-rarity.item-rarity');
+            if (!rarity) return false;
+            return rarity.classList.contains('legendary') || /legendarny/i.test(rarity.textContent);
+        }
+
+        function findInsertBefore(content) {
+            for (const sec of content.querySelectorAll('.item-tip-section')) {
+                if (sec.querySelector('.tip-item-stat-permbound, .tip-item-stat-soulbound, .tip-item-stat-lvl.level-required') ||
+                    /Wymagana profesja|Wymagany poziom|Związany z właścicielem/i.test(sec.textContent)) return sec;
+            }
+            return null;
+        }
+
+        function buildSection(c) {
+            const sec = document.createElement('div');
+            sec.className = 'item-tip-section s-ulepa-costs';
+            const row = (i) => `<div><span style="color:#55aaff;font-weight:bold;">+${i + 1}: ${fmt(c.pts[i])}</span> pkt. ulepszenia</div>`;
+            sec.innerHTML =
+                '<div style="border-top:1px solid #444;margin-top:4px;padding-top:3px;text-align:center;font-weight:bold;color:#ff4444;">Koszt ulepszeń</div>' +
+                [0, 1, 2, 3, 4].map(row).join('') +
+                `<div style="margin-top:3px;">Suma pkt. od +0 do +5: <span style="color:#55aaff;font-weight:bold;">${fmt(c.sum)}</span></div>` +
+                `<div>Koszt złota +5: <span style="color:#ffd740;font-weight:bold;">${fmt(c.gold)}</span></div>` +
+                `<div>Esencja: <span style="color:#9cff9c;font-weight:bold;">${fmt(c.ess)}</span></div>`;
+            return sec;
+        }
+
+        function processContent(content) {
+            if (!content || !state.ucEnabled) return;
+            const existing = content.querySelector('.item-tip-section.s-ulepa-costs');
+            if (!isLegendary(content)) {
+                existing?.remove();
+                return;
+            }
+            if (existing) return;
+            const costs = calcCosts(extractLevel(content));
+            if (!costs) return;
+            const sec = buildSection(costs);
+            const before = findInsertBefore(content);
+            if (before && before.parentNode === content) content.insertBefore(sec, before);
+            else content.appendChild(sec);
+        }
+
+        function attach(wrapper) {
+            const content = wrapper?.querySelector('.content');
+            if (!content) return;
+            if (!content.__paUcObs) {
+                content.__paUcObs = new MutationObserver(() => processContent(content));
+                content.__paUcObs.observe(content, { childList: true, subtree: true, characterData: true });
+            }
+            processContent(content);
+        }
+
+        const TIP_SEL = '.tip-wrapper[data-type="t_item"]';
+
+        function enable() {
+            document.querySelectorAll(TIP_SEL).forEach(attach);
+            if (bodyObs) return;
+            bodyObs = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    for (const node of m.addedNodes) {
+                        if (node.nodeType !== 1) continue;
+                        if (node.matches(TIP_SEL)) attach(node);
+                        else if (node.firstElementChild) node.querySelectorAll(TIP_SEL).forEach(attach);
+                    }
+                }
+            });
+            bodyObs.observe(document.body, { childList: true, subtree: true });
+        }
+
+        function disable() {
+            bodyObs?.disconnect();
+            bodyObs = null;
+            document.querySelectorAll(TIP_SEL).forEach((w) => {
+                const content = w.querySelector('.content');
+                if (content?.__paUcObs) {
+                    content.__paUcObs.disconnect();
+                    content.__paUcObs = null;
+                }
+            });
+            document.querySelectorAll('.s-ulepa-costs').forEach((sec) => sec.remove());
+        }
+
+        function setEnabled(on) {
+            if (on) enable();
+            else disable();
+        }
+
+        return { setEnabled, init: () => { if (state.ucEnabled) enable(); } };
     })();
 
     // ------------------------------------------------------------------
@@ -2550,9 +2736,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '🎨',
             name: 'Motyw',
             tag: 'Interfejs',
-            beta: true,
-            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 10 gotowych palet (przewijane) albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
+            isNew: true,
+            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 12 gotowych palet (przewijane) albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
             settings: () => ptTheme.settingsHtml(),
+        },
+        {
+            key: 'upgradecosts',
+            stateKey: 'ucEnabled',
+            icon: '💎',
+            name: 'Koszty ulepszeń',
+            tag: 'Ekwipunek',
+            isNew: true,
+            desc: 'W tipie legendarnego przedmiotu dopisuje koszt ulepszeń: punkty ulepszenia na +1…+5, ich sumę od +0 do +5, koszt złota na +5 i potrzebną esencję – liczone z wymaganego poziomu przedmiotu.',
         },
         {
             key: 'lootchance',
@@ -3276,6 +3471,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         berserk(on) {
             berserk.setEnabled(on);
             showToast(on ? 'Berserker: ikonka dodana obok ekwipunku' : 'Berserker wyłączony');
+        },
+        upgradecosts(on) {
+            upgradeCosts.setEnabled(on);
+            showToast(on ? 'Koszty ulepszeń włączone' : 'Koszty ulepszeń wyłączone');
         },
         lootchance(on) {
             lootChance.setEnabled(on);
@@ -7608,6 +7807,7 @@ function observeChatLinks() {
             whoResize.init();
             miniMap.init();
             lootChance.init();
+            upgradeCosts.init();
             syncUi(root);
 
             // motyw gry ładuje się chwilę po starcie – dopasuj kolor jeszcze raz
