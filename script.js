@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.8';
+    const PANEL_VERSION = '5.9';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -2254,6 +2254,21 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             return cls ? cls.slice(8) : '';
         }
 
+        let playersSnap = null;
+
+        // kolos: pod przedmiotem zamiast decyzji jest nick właściciela (albo pakiet z own)
+        function colossusOwner(wrapper, id) {
+            const me = heroId();
+            const info = lootItems[id];
+            if (info && info.loc === 'k' && info.own) return { mine: Number(info.own) === me, name: '' };
+            const txt = (wrapper.querySelector('.text-info')?.textContent || '').trim();
+            if (!txt || /chc|potrzeb/i.test(txt)) return null;
+            const myNick = String(PAGE.Engine?.hero?.d?.nick || PAGE.hero?.nick || '').trim().toLowerCase();
+            const short = txt.replace(/(\.\.\.|…)$/, '').trim().toLowerCase();
+            const mine = Boolean(myNick) && (short === myNick || (txt.length !== short.length && myNick.startsWith(short)));
+            return { mine, name: txt };
+        }
+
         function chanceFor(reqp, decision, players) {
             if (decision === NOT) return 0;
             // przedmiot bez profesji: „Chcę bardzo” nic nie daje – dzielimy na całą drużynę
@@ -2279,15 +2294,26 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         function render() {
             if (!state.lcEnabled) return clearDom();
             const wrappers = document.querySelectorAll('.loot-wnd .loot-item-wrapper, .loot-window .loot-item-wrapper');
-            if (!wrappers.length) return updateLegendFx();
-            const players = participants();
+            if (!wrappers.length || !Array.from(wrappers).some((w) => w.offsetParent !== null)) {
+                playersSnap = null;
+                return updateLegendFx();
+            }
+            // skład drużyny zamrażamy na czas jednego okna łupów – procenty nie skaczą w trakcie losowania
+            // (lista może tylko urosnąć, gdy dane drużyny dojdą później – nigdy nie maleje)
+            const current = participants();
+            if (!playersSnap || current.length > playersSnap.length) playersSnap = current;
+            const players = playersSnap;
             wrappers.forEach((wrapper) => {
                 const itemEl = wrapper.querySelector('.item');
                 if (!itemEl) return;
                 const id = wrapperItemId(wrapper);
                 const reqp = itemReqp(id);
                 const decision = readDecision(wrapper);
-                const pct = chanceFor(reqp, decision, players);
+                // łupy z kolosa: bez losowania, przedmiot przypisany od razu (pod nim nick właściciela)
+                const owner = colossusOwner(wrapper, id);
+                const pct = owner !== null
+                    ? (owner.mine ? 100 : 0)
+                    : chanceFor(reqp, decision, players);
 
                 const slot = itemEl.parentElement || itemEl;
                 if (getComputedStyle(slot).position === 'static') slot.style.position = 'relative';
@@ -2300,9 +2326,11 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const rounded = Math.round(pct * 10) / 10;
                 const text = `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}%`;
                 if (badge.textContent !== text) badge.textContent = text;
-                const cls = `pa-lc-badge ${pctClass(pct, decision)}`;
+                const cls = `pa-lc-badge ${owner !== null ? (owner.mine ? 'pa-lc-hi' : 'pa-lc-off') : pctClass(pct, decision)}`;
                 if (badge.className !== cls) badge.className = cls;
-                badge.title = decision === NOT
+                badge.title = owner !== null
+                    ? (owner.mine ? 'Przedmiot z kolosa przypisany do ciebie' : `Przedmiot z kolosa przypisany do: ${owner.name}`)
+                    : decision === NOT
                     ? 'Wybrano „Nie chcę”'
                     : `Szansa na zdobycie: ${rounded}%\nGraczy w drużynie: ${players.length}` +
                       (reqp ? `\nProfesja przedmiotu: ${reqp}` : '');
@@ -2453,7 +2481,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 Object.keys(data.item).forEach((id) => {
                     const it = data.item[id] || {};
                     if (it.del) { delete lootItems[id]; return; }
-                    if (it.loc === 'l') lootItems[id] = { reqp: String(parseStat(it.stat).reqp || '') };
+                    if (it.loc === 'l' || it.loc === 'k') lootItems[id] = { reqp: String(parseStat(it.stat).reqp || ''), loc: it.loc, own: it.own };
                     else if (it.loc && lootItems[id]) delete lootItems[id];
                 });
             }
