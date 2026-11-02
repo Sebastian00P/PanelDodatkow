@@ -2913,6 +2913,16 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         let tipFor = null;
         let renderQueued = false;
         let heroRefreshT = null;
+        // przelogowanie: po kliknięciu postaci w oknie przelogowania nic nie wysyłamy przez 20 s,
+        // żeby zapytania o aktywności innych postaci nie wpadły w trakcie zmiany postaci
+        let pausedUntil = 0;
+        const isPaused = () => Date.now() < pausedUntil;
+        document.addEventListener('mousedown', (e) => {
+            if (!e.target.closest?.('.relogger-window .relogger__one-character, .relogger-window [class*="relogger__char"]')) return;
+            pausedUntil = Date.now() + 20000;
+            queue.length = 0;
+            clearTimeout(heroRefreshT);
+        }, true);
 
         try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') || {}; } catch (_) { cache = {}; }
         const saveCache = () => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (_) {} };
@@ -2976,7 +2986,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     delete val.show;       // gra nie dostaje tej odpowiedzi – nie otwiera okna
                     return true;
                 });
-                if (!net.send(`activities&action=show&targetId=${id}`)) finish(null);
+                if (isPaused() || !net.send(`activities&action=show&targetId=${id}`)) finish(null);
                 setTimeout(() => { off(); finish(null); }, 6000);
             });
         }
@@ -2984,7 +2994,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         async function pump() {
             if (busy) return;
             busy = true;
-            while (queue.length) {
+            while (queue.length && !isPaused()) {
                 const ch = queue.shift();
                 const show = await fetchOne(ch.id);
                 if (show) {
@@ -2998,7 +3008,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         }
 
         async function refresh(force = false) {
-            if (!state.acEnabled) return;
+            if (!state.acEnabled || isPaused()) return;
             const list = await loadChars();
             if (!list) return;
             const w = worldName();
@@ -3221,6 +3231,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     if (cache[id]) cache[id].at = 0;
                     clearTimeout(heroRefreshT);
                     heroRefreshT = setTimeout(() => {
+                        if (isPaused()) return;
                         if (!queue.some((q) => String(q.id) === id)) queue.push({ id, nick: cache[id]?.nick });
                         pump();
                     }, 1500);
