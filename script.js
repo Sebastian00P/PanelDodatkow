@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.1';
+    const PANEL_VERSION = '5.9.2';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1031,11 +1031,28 @@ div[data-chat-message-id] a {
       width: 240px;
       padding: 10px;
       overflow-y: auto;
-      scrollbar-width: thin;
+      overscroll-behavior: contain;
       border-left: 1px solid var(--pa-border);
       background: rgba(255,255,255,.02);
     }
     .pa-mm-side.pa-visible { display: flex; }
+    /* ładny pasek przewijania w panelu bocznym */
+    .pa-mm-side::-webkit-scrollbar { width: 8px; }
+    .pa-mm-side::-webkit-scrollbar-track { background: transparent; margin: 6px 0; }
+    .pa-mm-side::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--pa-accent) 45%, transparent);
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    .pa-mm-side:hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--pa-accent) 70%, transparent); }
+    .pa-mm-side::-webkit-scrollbar-thumb:hover { background-color: var(--pa-accent); border-width: 1px; }
+    .pa-mm-side::-webkit-scrollbar-thumb:active { background-color: var(--pa-accent); border-width: 1px; }
+    .pa-mm-side::-webkit-scrollbar-button { display: none; height: 0; }
+    .pa-mm-side::-webkit-scrollbar-corner { background: transparent; }
+    @supports not selector(::-webkit-scrollbar) {
+      .pa-mm-side { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--pa-accent) 55%, transparent) transparent; }
+    }
     .pa-mm-stip {
       max-width: 280px; min-width: 190px; padding: 0; overflow: hidden;
       border-radius: 10px; font: 11.5px/1.35 var(--pa-font);
@@ -6968,6 +6985,11 @@ function observeChatLinks() {
                     renderSide();
                     return;
                 }
+                const pRow = e.target.closest('[data-mm-pid]');
+                if (pRow && !e.target.closest('button')) {
+                    showPlayerEq(pRow.getAttribute('data-mm-pid'));
+                    return;
+                }
                 const btn = e.target.closest('[data-mm-approach]');
                 const row = e.target.closest('[data-mm-row]');
                 if (btn) {
@@ -7330,6 +7352,24 @@ function observeChatLinks() {
             return null;
         }
 
+        // podgląd ekwipunku gracza (jak „Pokaż ekwipunek” z menu gracza w grze)
+        function showPlayerEq(id) {
+            const E = PAGE.Engine;
+            let d = null;
+            try { d = E?.others?.getById?.(id)?.d || null; } catch (_) {}
+            const o = others[id] || {};
+            const data = Object.assign({ id: Number(id) || id, nick: o.nick, lvl: o.lvl, prof: o.prof }, d || {});
+            try {
+                if (E?.showEqManager?.getEqData) {
+                    E.showEqManager.getEqData(data);
+                    return;
+                }
+            } catch (err) {
+                console.warn('[panel] showEqManager.getEqData', err);
+            }
+            showToast('Nie udało się otworzyć ekwipunku gracza');
+        }
+
         let chase = null;
         let chaseTimer = null;
 
@@ -7575,7 +7615,7 @@ function observeChatLinks() {
                 return `<div class="pa-st-head" style="--st-c:${c}"><span class="pa-st-dot"></span><span class="pa-st-name">${e(p.nick)}</span></div>
                   <div class="pa-st-tags">${rel[0] ? `<span class="pa-st-tag ${rel[1]}">${rel[0]}</span>` : ''}${on ? '<span class="pa-st-tag pa-st-acc">Gonisz</span>' : ''}</div>
                   <div class="pa-st-grid">${p.lvl ? `<span>Poziom</span><b>${p.lvl}</b>` : ''}${p.prof ? `<span>Profesja</span><b>${PROF_FULL[p.prof] || e(p.prof)}</b>` : ''}<span>Klan</span><b>${p.clan ? e(p.clan) : '—'}</b><span>Odległość</span><b>${distTxt(p.dist)}</b><span>Pozycja</span><b>${p.x}, ${p.y}</b></div>
-                  <div class="pa-st-hint">${kbd('LPM', 'zaznacz na mapie')}${kbd('Goń', on ? 'zatrzymaj pościg' : (state.mmChaseAttack ? 'biegnij i zaatakuj' : 'biegnij za graczem'))}</div>`;
+                  <div class="pa-st-hint">${kbd('LPM', 'pokaż ekwipunek')}${kbd('Goń', on ? 'zatrzymaj pościg' : (state.mmChaseAttack ? 'biegnij i zaatakuj' : 'biegnij za graczem'))}</div>`;
             }
             if (t === 'o') {
                 const o = sideData.list[Number(idx)];
@@ -7670,7 +7710,7 @@ function observeChatLinks() {
             const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p, pi) => {
                 const on = chase && chase.id === p.id;
                 return `
-              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" data-mm-tip="p:${pi}">
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" data-mm-pid="${escapeHtmlPa(p.id)}" data-mm-tip="p:${pi}">
                 <span class="pa-mm-row-dot" style="background:${COLORS[p.kind]}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : ''}${p.clan ? escapeHtmlPa(p.clan) : 'bez klanu'} · </span><span data-mm-dist>${Math.round(p.dist)} kr.</span><span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
                 <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" data-mm-tip-text="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : 'Goń'}</button>
