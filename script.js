@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.8';
+    const PANEL_VERSION = '5.9.9';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -8015,19 +8015,18 @@ function observeChatLinks() {
             const availW = Math.max(200, window.innerWidth - 300);
             const availH = Math.max(150, window.innerHeight - 130);
             const fit = Math.min(availW / mapW, availH / mapH) * pct;
+            // mapa zawsze skaluje się zgodnie z ustawionym % (bez sztucznego minimum szerokości –
+            // wcześniej małe mapy przestawały się zmniejszać poniżej ok. 430 px)
             let w = Math.max(120, Math.floor(mapW * fit));
-            // wąska (wysoka) mapa – powiększamy ją do szerokości paska, jeśli zmieści się na ekranie
-            const MIN_W = 430;
-            if (w < MIN_W) {
-                const grow = Math.min(MIN_W / mapW, availH / mapH, availW / mapW);
-                w = Math.max(w, Math.floor(mapW * grow));
-            }
             scale = w / mapW;
             w = Math.round(scale * mapW);
             const h = Math.round(scale * mapH);
             map.style.width = `${w}px`;
             const col = el.querySelector('.pa-mm-col');
-            if (col) col.style.width = `${w + 14}px`;   // okno = szerokość mapy + ramka
+            // okno = szerokość mapy + ramka, ale nie węższe niż pasek z wyszukiwarką i zoomem
+            const MIN_COL = 300;
+            if (col) col.style.width = `${Math.max(w + 14, MIN_COL)}px`;
+            map.style.marginLeft = map.style.marginRight = w + 14 < MIN_COL ? 'auto' : '';
             map.style.height = `${h}px`;
 
             const url = mapImageUrl();
