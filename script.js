@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.2';
+    const PANEL_VERSION = '5.9.3';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -72,6 +72,8 @@
         lcEnabled: false,
         // koszty ulepszeń
         ucEnabled: false,
+        // godzina zdobycia przedmiotu
+        ltEnabled: false,
         lcPulse: true,
     };
 
@@ -97,7 +99,7 @@
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
-        'lcEnabled', 'lcPulse', 'ucEnabled',
+        'lcEnabled', 'lcPulse', 'ucEnabled', 'ltEnabled',
     ];
 
     function loadSettings() {
@@ -2665,6 +2667,199 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
     })();
 
     // ------------------------------------------------------------------
+    //  GODZINA ZDOBYCIA – w tipie przedmiotu przy „W dniu … został(a)
+    //  pokonany(a) …” dopisuje dokładną godzinę i (jeśli gra ją zapisuje)
+    //  liczbę osób w drużynie. Dane ze statystyki „loot” przedmiotu.
+    // ------------------------------------------------------------------
+    const lootTime = (function () {
+        const cache = {};          // id przedmiotu -> surowy „loot”
+        let bodyObs = null;
+        let lastItemId = null;
+        let tipHooked = false;
+
+        const pad = (n) => String(n).padStart(2, '0');
+
+        function lootFromItem(it) {
+            if (!it || typeof it !== 'object') return '';
+            const st = it.stats || it._cachedStats || it.d?.stats;
+            if (st && typeof st === 'object' && st.loot) return String(st.loot);
+            const raw = typeof it.stat === 'string' ? it.stat : (typeof it.d?.stat === 'string' ? it.d.stat : '');
+            const m = raw && raw.match(/(?:^|;)loot=([^;]*)/);
+            return m ? m[1] : '';
+        }
+
+        // loot = nick,płeć,…,timestamp,nazwa potwora – szukamy pól po wyglądzie, nie po pozycji
+        function parseLoot(raw) {
+            if (!raw) return null;
+            const parts = String(raw).split(',');
+            const tsIdx = parts.findIndex((p) => /^\d{9,11}$/.test(p.trim()));
+            if (tsIdx < 0) return null;
+            const d = new Date(Number(parts[tsIdx]) * 1000);
+            if (Number.isNaN(d.getTime())) return null;
+            let grp = 0;
+            for (let i = 1; i < tsIdx; i++) {
+                const v = parts[i].trim();
+                if (/^\d{1,2}$/.test(v) && Number(v) >= 2) grp = Number(v);
+            }
+            return { time: `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`, grp };
+        }
+
+        const timeHtml = (info) => `<span class="pa-loot-time" style="color:#ffd84d;font-weight:bold;">, godz. ${info.time}</span>`;
+        const grpHtml = (info) => `<span class="pa-loot-grp" style="color:#7fd3ff;font-weight:bold;"> (${info.grp} os.)</span>`;
+
+        function getItem(id) {
+            if (id == null) return null;
+            if (cache[id]) return { stat: `loot=${cache[id]}` };
+            const items = PAGE.Engine?.items;
+            try {
+                return items?.getItemById?.(id) || items?.getItem?.(id) || null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        // 1) tip budowany przez grę – dopisujemy od razu do HTML-a
+        function hookTipParser() {
+            if (tipHooked) return true;
+            const P = PAGE.MargoTipsParser;
+            if (!P || typeof P.getTip !== 'function') return false;
+            const orig = P.getTip;
+            P.getTip = function (item) {
+                let html = orig.apply(this, arguments);
+                try {
+                    if (state.ltEnabled && typeof html === 'string' && !html.includes('pa-loot-time')) {
+                        const info = parseLoot(lootFromItem(item));
+                        if (info) html = injectHtml(html, info);
+                    }
+                } catch (_) {}
+                return html;
+            };
+            tipHooked = true;
+            return true;
+        }
+
+        function injectHtml(html, info) {
+            const m = html.match(/W dniu \d{1,2}\.\d{1,2}\.\d{4}/);
+            if (!m) return html;
+            const at = m.index + m[0].length;
+            let rest = html.slice(at);
+            if (info.grp) rest = rest.replace(/(drużyną|drużynę)/, `$1${grpHtml(info)}`);
+            return html.slice(0, at) + timeHtml(info) + rest;
+        }
+
+        // 2) zapas: tip już w DOM – szukamy linijki z datą i dopisujemy
+        function processContent(content) {
+            if (!content || !state.ltEnabled || content.querySelector('.pa-loot-time')) return;
+            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+            let node = null;
+            let m = null;
+            while ((node = walker.nextNode())) {
+                m = node.nodeValue.match(/W dniu \d{1,2}\.\d{1,2}\.\d{4}/);
+                if (m) break;
+            }
+            if (!node || !m) return;
+            const info = parseLoot(lootFromItem(getItem(lastItemId)));
+            if (!info) return;
+            const after = node.splitText(m.index + m[0].length);
+            const span = document.createElement('span');
+            span.innerHTML = timeHtml(info);
+            node.parentNode.insertBefore(span.firstChild, after);
+            if (info.grp) {
+                const w2 = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+                let n2 = null;
+                let seen = false;
+                while ((n2 = w2.nextNode())) {
+                    if (n2 === after) seen = true;
+                    if (!seen) continue;
+                    const g = n2.nodeValue.match(/drużyną|drużynę/);
+                    if (!g) continue;
+                    const tail = n2.splitText(g.index + g[0].length);
+                    const gs = document.createElement('span');
+                    gs.innerHTML = grpHtml(info);
+                    tail.parentNode.insertBefore(gs.firstChild, tail);
+                    break;
+                }
+            }
+        }
+
+        function attach(wrapper) {
+            const content = wrapper?.querySelector('.content');
+            if (!content) return;
+            if (!content.__paLtObs) {
+                content.__paLtObs = new MutationObserver(() => processContent(content));
+                content.__paLtObs.observe(content, { childList: true, subtree: true });
+            }
+            processContent(content);
+        }
+
+        function itemIdFromEl(el) {
+            const it = el?.closest?.('[data-itemid], .item');
+            if (!it) return null;
+            if (it.dataset.itemid) return Number(it.dataset.itemid);
+            const cls = Array.from(it.classList).find((c) => c.startsWith('item-id-'));
+            if (cls) return Number(cls.slice(8));
+            const idAttr = it.id && it.id.match(/^item(\d+)$/);
+            return idAttr ? Number(idAttr[1]) : null;
+        }
+
+        const TIP_SEL = '.tip-wrapper[data-type="t_item"]';
+
+        function enable() {
+            hookTipParser();
+            document.querySelectorAll(TIP_SEL).forEach(attach);
+            if (bodyObs) return;
+            bodyObs = new MutationObserver((mutations) => {
+                for (const mu of mutations) {
+                    for (const n of mu.addedNodes) {
+                        if (n.nodeType !== 1) continue;
+                        if (n.matches(TIP_SEL)) attach(n);
+                        else if (n.firstElementChild) n.querySelectorAll(TIP_SEL).forEach(attach);
+                    }
+                }
+            });
+            bodyObs.observe(document.body, { childList: true, subtree: true });
+        }
+
+        function disable() {
+            bodyObs?.disconnect();
+            bodyObs = null;
+            document.querySelectorAll('.pa-loot-time, .pa-loot-grp').forEach((n) => n.remove());
+        }
+
+        function init() {
+            // przedmioty z pakietów serwera – zapamiętujemy „loot” po id
+            net.on('item', (items) => {
+                if (!items || typeof items !== 'object') return;
+                for (const id in items) {
+                    const raw = lootFromItem(items[id]);
+                    if (raw) cache[id] = raw;
+                }
+            });
+            document.addEventListener('mouseover', (e) => {
+                const id = itemIdFromEl(e.target);
+                if (id != null) lastItemId = id;
+            }, true);
+            // parser tipów gry może pojawić się chwilę po starcie
+            let tries = 0;
+            const t = setInterval(() => {
+                if (hookTipParser() || ++tries > 60) clearInterval(t);
+            }, 1000);
+            if (state.ltEnabled) enable();
+        }
+
+        // podgląd w konsoli: paLoot(idPrzedmiotu)
+        PAGE.paLoot = (id) => {
+            const raw = lootFromItem(getItem(id ?? lastItemId));
+            return { raw, parsed: parseLoot(raw) };
+        };
+
+        return {
+            init,
+            setEnabled(on) { if (on) enable(); else disable(); },
+        };
+    })();
+
+    // ------------------------------------------------------------------
     //  KATALOG DODATKÓW (karty w modalu)
     // ------------------------------------------------------------------
     const ADDONS = [
@@ -2816,6 +3011,15 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             tag: 'Ekwipunek',
             isNew: true,
             desc: 'W tipie legendarnego przedmiotu dopisuje koszt ulepszeń: punkty ulepszenia na +1…+5, ich sumę od +0 do +5, koszt złota na +5 i potrzebną esencję – liczone z wymaganego poziomu przedmiotu.',
+        },
+        {
+            key: 'loottime',
+            stateKey: 'ltEnabled',
+            icon: '🕒',
+            name: 'Godzina zdobycia',
+            tag: 'Ekwipunek',
+            isNew: true,
+            desc: 'W tipie przedmiotu przy „W dniu … został(a) pokonany(a) …” dopisuje dokładną godzinę zdobycia, a jeśli gra zapisuje to w przedmiocie – także liczbę osób w drużynie.',
         },
         {
             key: 'lootchance',
@@ -3543,6 +3747,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         upgradecosts(on) {
             upgradeCosts.setEnabled(on);
             showToast(on ? 'Koszty ulepszeń włączone' : 'Koszty ulepszeń wyłączone');
+        },
+        loottime(on) {
+            lootTime.setEnabled(on);
+            showToast(on ? 'Godzina zdobycia włączona' : 'Godzina zdobycia wyłączona');
         },
         lootchance(on) {
             lootChance.setEnabled(on);
@@ -8028,6 +8236,7 @@ function observeChatLinks() {
             miniMap.init();
             lootChance.init();
             upgradeCosts.init();
+            lootTime.init();
             syncUi(root);
 
             // motyw gry ładuje się chwilę po starcie – dopasuj kolor jeszcze raz
