@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.1';
+    const PANEL_VERSION = '6.0.2';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -55,6 +55,7 @@
         mmShowMobs: true,
         mmShowNpcs: true,
         mmShowSpawns: true,
+        mmFog: true,                  // „mgła wojny” – ramka z zasięgiem widzenia
         mmSpawnRange: 10,             // zasięg wykrywania herosa ze respu (kratki)
         mmChaseAttack: true,
         mmGwAvail: false,             // tylko przejścia, do których da się dojść
@@ -101,7 +102,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos', 'mmSideHidden',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos', 'mmSideHidden', 'mmFog',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
         'lcEnabled', 'lcPulse', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone',
@@ -125,6 +126,7 @@
             state.mmShowMobs = saved.mmShowMobs !== false;
             state.mmShowNpcs = saved.mmShowNpcs !== false;
             state.mmShowSpawns = saved.mmShowSpawns !== false;
+            state.mmFog = saved.mmFog !== false;
             // jednorazowo: respy herosów stały się domyślnie włączone – włącz też u osób, które miały stary domyślny „wyłączony”
             try {
                 if (!localStorage.getItem('pa_mm_spawns_default_v2')) {
@@ -1239,6 +1241,12 @@ div[data-chat-message-id] a {
       box-shadow: 0 0 0 1px #000, 0 0 10px 3px rgba(255, 236, 80, .8);
       z-index: 150 !important;
     }
+    /* resp, przy którym stoi inny gracz – wygląda jak heros (może tam być) */
+    .pa-mm-obj.pa-mm-resp.pa-mm-suspect, .pa-mm-obj.pa-mm-respEvent.pa-mm-suspect {
+      border: 0 !important; background: #ffd23f !important; color: #ffd23f !important;
+      box-shadow: 0 0 0 1.5px #000, 0 0 10px 3px rgba(255,210,63,.75); z-index: 160 !important;
+    }
+    .pa-mm-obj.pa-mm-respEvent.pa-mm-suspect { background: #ff4dd2 !important; color: #ff4dd2 !important; box-shadow: 0 0 0 1.5px #000, 0 0 10px 3px rgba(255,77,210,.75); }
     .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
     @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.2); } }
@@ -1305,11 +1313,18 @@ div[data-chat-message-id] a {
     .pa-mm-grip { color: var(--pa-muted); font-size: 11px; letter-spacing: -2px; opacity: .7; }
     .pa-mm-head .pa-mm-name { font-size: 11px; }
     .pa-mm-sidetoggle {
-      margin-left: auto; flex: 0 0 auto; width: 20px; height: 18px; padding: 0;
-      border: 1px solid var(--pa-border); border-radius: 5px; background: rgba(0,0,0,.25);
-      color: var(--pa-muted); font: 700 12px/1 var(--pa-font); cursor: pointer;
+      margin-left: auto; flex: 0 0 auto; width: 22px; height: 20px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 0; border-radius: 6px; background: transparent;
+      color: var(--pa-muted); cursor: pointer; outline: none;
+      transition: color .12s ease, background .12s ease;
     }
-    .pa-mm-sidetoggle:hover, .pa-mm-sidetoggle.pa-on { color: var(--pa-accent); border-color: var(--pa-accent); }
+    .pa-mm-sidetoggle:hover { color: var(--pa-text); background: rgba(255,255,255,.08); }
+    .pa-mm-sidetoggle:focus-visible { box-shadow: 0 0 0 1px var(--pa-accent); }
+    .pa-mm-sidetoggle svg { display: block; }
+    .pa-mm-sidetoggle .pa-mm-st-arrow { transition: transform .15s ease; transform-origin: 6.5px 8px; transform: rotate(180deg); }
+    .pa-mm-sidetoggle.pa-mm-st-hidden .pa-mm-st-arrow { transform: none; }
+    .pa-mm-sidetoggle.pa-mm-st-hidden .pa-mm-st-col { opacity: .35; }
     .pa-mm-tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
     .pa-mm-brand { font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
     .pa-mm-sep { display: none; }
@@ -3467,6 +3482,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowOthers"> Pokazuj innych graczy</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmChaseAttack"> Przycisk przy graczu: goń i atakuj (wyłączone = tylko goń)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="mmFog"> Mgła wojny – ramka z zasięgiem widzenia postaci</label>
               <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania respu (kratki) – sprawdzony resp zostaje podświetlony</span><input type="number" min="1" max="60" step="1" data-pa-opt-num="mmSpawnRange"></label></div>
               <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#3a3a3a">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie i obcy gracze · <b style="color:#fff;text-shadow:0 0 2px #000">●</b> groby · <b style="color:#2b3cff">■</b> przejścia</p>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button><button type="button" class="pa-btn" data-pa-action="mm-reset-pos">Przywróć pozycję mapy</button></div>
@@ -4907,40 +4923,56 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         }
 
         box.innerHTML = html;
+        // element pod kursorem mógł zostać podmieniony – sprawdź dymek od nowa
+        pilRecheckTooltip();
+    }
+
+    // dymek z nickami: pokazujemy/chowamy na podstawie tego, co faktycznie jest pod kursorem.
+    // (lista odświeża się co 5 s i podmienia elementy – wtedy „mouseout” nie przychodzi
+    // i dymek zostawał przy kursorze)
+    let pilLastMouse = null;
+    function pilUpdateTooltip(x, y, ev) {
+        const tooltip = document.getElementById("pilnowacz-tooltip");
+        if (!tooltip) return;
+        const el = document.elementFromPoint(x, y);
+        const target = el && el.closest ? el.closest(".pilnowacz-count") : null;
+        const data = target && target.getAttribute("data-tooltip");
+        if (!data) {
+            tooltip.style.display = "none";
+            return;
+        }
+        const text = data.split("|").join("\n");
+        if (tooltip.innerText !== text) tooltip.innerText = text;
+        if (tooltip.style.display !== "block") {
+            tooltip.style.visibility = "hidden";
+            tooltip.style.display = "block";
+        }
+        positionTooltip(ev || { clientX: x, clientY: y }, tooltip);
+        tooltip.style.visibility = "visible";
+    }
+
+    function pilRecheckTooltip() {
+        if (pilLastMouse) pilUpdateTooltip(pilLastMouse.x, pilLastMouse.y);
     }
 
     function setupTooltipEvents() {
-        document.addEventListener("mouseover", (e) => {
-            const target = e.target;
-
-            if (target.classList.contains("pilnowacz-count")) {
-                const tooltip = document.getElementById("pilnowacz-tooltip");
-                const data = target.getAttribute("data-tooltip");
-
-                tooltip.innerText = data.split("|").join("\n");
-
-                tooltip.style.visibility = "hidden";
-                tooltip.style.display = "block";
-
-                positionTooltip(e, tooltip);
-
-                tooltip.style.visibility = "visible";
-            }
-        });
-
+        if (window.__paPilTipEvents) return;
+        window.__paPilTipEvents = true;
         document.addEventListener("mousemove", (e) => {
+            pilLastMouse = { x: e.clientX, y: e.clientY };
             const tooltip = document.getElementById("pilnowacz-tooltip");
-
-            if (tooltip.style.display === "block") {
-                positionTooltip(e, tooltip);
-            }
+            if (!tooltip) return;
+            const over = e.target && e.target.closest && e.target.closest(".pilnowacz-count");
+            if (!over && tooltip.style.display !== "block") return;
+            pilUpdateTooltip(e.clientX, e.clientY, e);
+        }, true);
+        document.addEventListener("mouseleave", () => {
+            const tooltip = document.getElementById("pilnowacz-tooltip");
+            if (tooltip) tooltip.style.display = "none";
         });
-
-        document.addEventListener("mouseout", (e) => {
-            if (e.target.classList.contains("pilnowacz-count")) {
-                const tooltip = document.getElementById("pilnowacz-tooltip");
-                tooltip.style.display = "none";
-            }
+        window.addEventListener("blur", () => {
+            const tooltip = document.getElementById("pilnowacz-tooltip");
+            if (tooltip) tooltip.style.display = "none";
         });
     }
 
@@ -7304,6 +7336,13 @@ function observeChatLinks() {
         let hiddenGameWin = null;
         let search = { text: '', coords: null };
         let markerTimer = null;
+        // migający punkt na mapie przez 4 s (kliknięcie wiersza, „Przejdź”)
+        function flashMarker(x, y) {
+            search = { text: search.text, coords: [x, y], temp: Date.now() + 4000 };
+            clearTimeout(markerTimer);
+            markerTimer = setTimeout(renderObjects, 4100);
+            renderObjects();
+        }
         let hoverTile = null;
 
         // ---------- zbieranie danych ----------
@@ -7653,10 +7692,32 @@ function observeChatLinks() {
             }
         }
 
+        // ktoś (sojusznik czy obcy) stoi przy respie herosa, a herosa nie widać – może tam być.
+        // Gdy sami podejdziemy w zasięg wykrywania, resp wraca do zwykłego wyglądu.
+        const SUSPECT_RANGE = 3;
+        function suspectSpawn(sp) {
+            const h = heroPos();
+            const myRange = Math.max(1, Number(state.mmSpawnRange) || 10);
+            if (h && Math.hypot(sp.x - (h.x ?? h.rx), sp.y - (h.y ?? h.ry)) <= myRange) return sp;
+            for (const id in npcs) {
+                const n = npcs[id];
+                const k = n.x !== undefined ? npcKind(n) : null;
+                if ((k === 'heros' || k === 'herosEvent') && Math.hypot(n.x - sp.x, n.y - sp.y) <= 8) return sp;
+            }
+            const near = [];
+            for (const id in others) {
+                const o = others[id];
+                if (o.x === undefined || o.y === undefined) continue;
+                if (Math.hypot(Number(o.x) - sp.x, Number(o.y) - sp.y) <= SUSPECT_RANGE) near.push(o.nick || '?');
+            }
+            if (!near.length) return sp;
+            return Object.assign({}, sp, { suspect: near });
+        }
+
         function collectObjects() {
             const list = [];
             for (const g of gws) list.push(g);
-            if (state.mmShowSpawns) for (const s of spawns) list.push(s);
+            if (state.mmShowSpawns) for (const s of spawns) list.push(suspectSpawn(s));
             for (const id in npcs) {
                 const n = npcs[id];
                 if (n.x === undefined || n.y === undefined) continue;
@@ -7733,7 +7794,7 @@ function observeChatLinks() {
                 <span class="pa-mm-grip">⋮⋮</span>
                 <span class="pa-mm-brand">Nowa mapa</span>
                 <span class="pa-mm-name" data-mm-name></span>
-                <button type="button" class="pa-mm-sidetoggle" data-mm-side-toggle title="Schowaj / pokaż panel z graczami, przejściami i mobami">»</button>
+                <button type="button" class="pa-mm-sidetoggle" data-mm-side-toggle title="Schowaj panel z graczami, przejściami i mobami"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><line class="pa-mm-st-col" x1="10" y1="2.8" x2="10" y2="13.2"/><polyline class="pa-mm-st-arrow" points="5.5,6 7.5,8 5.5,10"/></svg></button>
               </div>
               <div class="pa-mm-map" data-mm-map>
                 <div class="pa-mm-objects" data-mm-objects></div>
@@ -7813,6 +7874,7 @@ function observeChatLinks() {
                 e.stopPropagation();
                 state.mmSideHidden = !state.mmSideHidden;
                 saveSettings();
+                e.currentTarget.blur();
                 sideSig = null;
                 renderSide();
             });
@@ -7838,7 +7900,10 @@ function observeChatLinks() {
                 if (gwBtn) {
                     const [gx, gy] = gwBtn.getAttribute('data-mm-gw').split(',').map(Number);
                     if (gwWalk && gwWalk.x === gx && gwWalk.y === gy) stopGwWalk('Zatrzymano');
-                    else startGwWalk(gx, gy, gwBtn.getAttribute('data-mm-gw-name') || 'przejście');
+                    else {
+                        startGwWalk(gx, gy, gwBtn.getAttribute('data-mm-gw-name') || 'przejście');
+                        flashMarker(gx, gy);
+                    }
                     sideSig = null;
                     renderSide();
                     return;
@@ -7967,7 +8032,8 @@ function observeChatLinks() {
                 const type = o.player ? (o.clan ? escapeHtmlPa(o.clan) : 'bez klanu') : (TYPE_NAMES[o.kind] || '');
                 const lvl = o.lvl ? ` · ${o.lvl}${o.prof || ''} lvl` : '';
                 const grp = o.grp ? ' · grupa' : '';
-                return `<div><b style="color:${COLORS[o.kind] || '#fff'}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${Math.round(o.tx ?? o.x)},${Math.round(o.ty ?? o.y)})</span></div>`;
+                const sus = o.suspect ? `<br><span style="color:#ffd23f;font-weight:700">⚠ Może tu być heros!</span><br><span style="color:var(--pa-muted)">Przy respie stoi: ${o.suspect.map(escapeHtmlPa).join(', ')}</span>` : '';
+                return `<div><b style="color:${o.suspect ? '#ffd23f' : (COLORS[o.kind] || '#fff')}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${Math.round(o.tx ?? o.x)},${Math.round(o.ty ?? o.y)})</span>${sus}</div>`;
             }).join('<div style="height:4px"></div>');
             tip.style.display = 'block';
             const x = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + 14);
@@ -8658,8 +8724,8 @@ function observeChatLinks() {
             side.classList.toggle('pa-visible', !state.mmSideHidden && (list.length > 0 || players.length > 0 || allGates.length > 0));
             const tgl = el.querySelector('[data-mm-side-toggle]');
             if (tgl) {
-                tgl.textContent = state.mmSideHidden ? '«' : '»';
-                tgl.classList.toggle('pa-on', Boolean(state.mmSideHidden));
+                tgl.classList.toggle('pa-mm-st-hidden', Boolean(state.mmSideHidden));
+                tgl.title = state.mmSideHidden ? 'Pokaż panel z graczami, przejściami i mobami' : 'Schowaj panel z graczami, przejściami i mobami';
             }
             const rowsCount = list.length + players.length + gates.length;
             side.classList.toggle('pa-mm-dense', rowsCount > 8);
@@ -8706,7 +8772,7 @@ function observeChatLinks() {
                 const key = o.id || `${o.kind}-${o.x}-${o.y}`;
                 seen.add(key);
                 let d = objEls.get(key);
-                const cls = `pa-mm-obj pa-mm-${o.kind}${o.player ? ' pa-mm-player' : ''}${PULSE[o.kind] ? ' pa-mm-pulse' : ''}`;
+                const cls = `pa-mm-obj pa-mm-${o.kind}${o.player ? ' pa-mm-player' : ''}${PULSE[o.kind] || o.suspect ? ' pa-mm-pulse' : ''}${o.suspect ? ' pa-mm-suspect' : ''}`;
                 let fresh = false;
                 if (!d) {
                     d = document.createElement('div');
@@ -8714,10 +8780,11 @@ function observeChatLinks() {
                     layer.appendChild(d);
                     fresh = true;
                 }
-                if (!d.className.startsWith(cls)) d.className = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '') + (d.classList.contains('pa-mm-near') ? ' pa-mm-near' : '');
+                const wantCls = cls + (d.classList.contains('pa-mm-anim') ? ' pa-mm-anim' : '') + (d.classList.contains('pa-mm-near') ? ' pa-mm-near' : '');
+                if (d.className !== wantCls) d.className = wantCls;
                 d.dataset.x = o.x;
                 d.dataset.y = o.y;
-                const big = PULSE[o.kind] ? Math.round(s * 1.5) : s;
+                const big = PULSE[o.kind] || o.suspect ? Math.round(s * 1.5) : s;
                 const w = o.spanX ? Math.max(s, o.spanX * scale) : big;
                 const hgt = o.spanY ? Math.max(s, o.spanY * scale) : big;
                 d.style.width = `${w}px`;
@@ -8794,7 +8861,7 @@ function observeChatLinks() {
                 try { v = Number(PAGE.Engine?.map?.d?.visibility) || 0; } catch (_) {}
             }
             // mapa bez ograniczonej widoczności (bez PvP) – widać całą mapę, więc bez kwadratu wykrywania
-            if (v > 0) {
+            if (v > 0 && state.mmFog !== false) {
                 const size = (2 * v + 1) * scale;
                 const cx = (h.rx + 0.5) * scale;
                 const cy = (h.ry + 0.5) * scale;
