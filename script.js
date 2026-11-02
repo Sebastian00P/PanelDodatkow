@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.6';
+    const PANEL_VERSION = '5.9.7';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -779,7 +779,7 @@ div[data-chat-message-id] a {
     /* ---------- szansa na łup ---------- */
     .pa-lc-badge {
       position: absolute; left: 50%; top: -15px; transform: translateX(-50%);
-      z-index: 50; pointer-events: auto; cursor: help;
+      z-index: 50; pointer-events: auto; cursor: default;
       padding: 0 4px; border-radius: 6px; white-space: nowrap;
       font: 700 10px/13px "Segoe UI", Arial, sans-serif; letter-spacing: .2px;
       background: rgba(10,12,18,.88); border: 1px solid rgba(255,255,255,.18);
@@ -789,6 +789,19 @@ div[data-chat-message-id] a {
     .pa-lc-badge.pa-lc-mid { color: #ffd84d; border-color: rgba(255,216,77,.55); }
     .pa-lc-badge.pa-lc-low { color: #ff6b6b; border-color: rgba(255,107,107,.55); }
     .pa-lc-badge.pa-lc-off { color: #8a90a0; }
+    .pa-lc-badge:hover { filter: brightness(1.25); box-shadow: 0 0 0 1px currentColor; }
+    .pa-lc-tip { min-width: 220px; max-width: 280px; }
+    .pa-lc-rows { display: flex; flex-direction: column; gap: 5px; padding: 7px 10px 8px; max-height: 300px; overflow-y: auto; }
+    .pa-lc-row { padding: 5px 7px 6px; border-radius: 7px; border: 1px solid var(--pa-border); background: rgba(255,255,255,.025); }
+    .pa-lc-row.pa-lc-me { border-color: color-mix(in srgb, var(--pa-accent) 60%, transparent); background: color-mix(in srgb, var(--pa-accent) 10%, transparent); }
+    .pa-lc-row.pa-lc-zero { opacity: .55; }
+    .pa-lc-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .pa-lc-row-top b { font-variant-numeric: tabular-nums; font-size: 12px; }
+    .pa-lc-nick { font-weight: 700; color: var(--pa-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pa-lc-nick em { font-style: normal; font-weight: 600; color: var(--pa-muted); font-size: 10.5px; }
+    .pa-lc-row-sub { font-size: 10px; color: var(--pa-muted); margin-top: 1px; }
+    .pa-lc-bar { height: 3px; border-radius: 3px; background: rgba(255,255,255,.07); margin-top: 4px; overflow: hidden; }
+    .pa-lc-bar i { display: block; height: 100%; border-radius: 3px; transition: width .2s; }
     @keyframes paLcLegPulse {
       0%, 100% { scale: 1; filter: drop-shadow(0 0 3px rgba(255,190,60,.6)); }
       50% { scale: 1.2; filter: drop-shadow(0 0 10px rgba(255,200,70,1)); }
@@ -1145,7 +1158,19 @@ div[data-chat-message-id] a {
     .pa-act-badge.pa-act-done { background: linear-gradient(180deg, #3ed16a, #129a3e); box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset, 0 2px 6px rgba(0,0,0,.6); font-size: 9px; }
     @keyframes paActPop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     .pa-act-tip { max-width: 300px; }
-    .pa-act-list { padding: 6px 10px 8px; max-height: 320px; overflow: auto; }
+    .pa-act-list { padding: 6px 10px 8px; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; position: relative;
+      -webkit-mask-image: none; mask-image: none; }
+    .pa-act-list.pa-fade-b { -webkit-mask-image: linear-gradient(180deg, #000 85%, transparent); mask-image: linear-gradient(180deg, #000 85%, transparent); }
+    .pa-act-list.pa-fade-t { -webkit-mask-image: linear-gradient(0deg, #000 85%, transparent); mask-image: linear-gradient(0deg, #000 85%, transparent); }
+    .pa-act-list.pa-fade-t.pa-fade-b { -webkit-mask-image: linear-gradient(180deg, transparent, #000 12%, #000 85%, transparent); mask-image: linear-gradient(180deg, transparent, #000 12%, #000 85%, transparent); }
+    .pa-act-list::-webkit-scrollbar { width: 6px; }
+    .pa-act-list::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
+    .pa-act-list::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--pa-accent) 55%, transparent); border-radius: 6px; }
+    .pa-act-list::-webkit-scrollbar-button { display: none; height: 0; }
+    @supports not selector(::-webkit-scrollbar) { .pa-act-list { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--pa-accent) 55%, transparent) transparent; } }
+    .pa-act-foot { flex-direction: row !important; justify-content: space-between; align-items: center; }
+    .pa-act-foot kbd { min-width: 0 !important; margin-right: 4px !important; }
+    .pa-act-item i { color: var(--pa-muted); font-style: italic; }
     .pa-act-cat { font: 700 9.5px var(--pa-font); letter-spacing: .5px; text-transform: uppercase; color: var(--pa-accent); margin: 6px 0 3px; }
     .pa-act-cat:first-child { margin-top: 0; }
     .pa-act-item { position: relative; padding: 2px 0 2px 12px; color: var(--pa-text); }
@@ -2315,7 +2340,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     const d = m.d || m;
                     const id = Number(d.id ?? key);
                     if (!id || partyMembers[id]) return;
-                    partyMembers[id] = { id, prof: d.prof || '' };
+                    partyMembers[id] = { id, prof: d.prof || '', nick: d.nick || d.name || '', lvl: d.lvl };
                 });
             } catch (_) {}
         }
@@ -2324,15 +2349,20 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         function participants() {
             const me = heroId();
             if (Object.keys(partyMembers).length < 2) readEngineParty();
-            let list = Object.values(partyMembers).map((m) => ({ id: m.id, prof: m.prof || fightWarriors[m.id]?.prof || '' }));
+            let list = Object.values(partyMembers).map((m) => ({ id: m.id, prof: m.prof || fightWarriors[m.id]?.prof || '', nick: m.nick || fightWarriors[m.id]?.nick || '', lvl: m.lvl || fightWarriors[m.id]?.lvl }));
             if (list.length < 2) {
                 const myTeam = fightWarriors[me]?.team;
                 list = myTeam === undefined ? [] : Object.values(fightWarriors)
                     .filter((w) => w.id > 0 && w.team === myTeam)
-                    .map((w) => ({ id: w.id, prof: w.prof || '' }));
+                    .map((w) => ({ id: w.id, prof: w.prof || '', nick: w.nick || '', lvl: w.lvl }));
             }
             const mine = list.find((p) => p.id === me);
-            if (mine) { if (!mine.prof) mine.prof = heroProf(); } else list.push({ id: me, prof: heroProf() });
+            const hd = PAGE.Engine?.hero?.d || PAGE.hero || {};
+            if (mine) {
+                if (!mine.prof) mine.prof = heroProf();
+                if (!mine.nick) mine.nick = hd.nick || '';
+                if (!mine.lvl) mine.lvl = hd.lvl;
+            } else list.push({ id: me, prof: heroProf(), nick: hd.nick || '', lvl: hd.lvl });
             return list;
         }
 
@@ -2388,12 +2418,108 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             return 100 / players.length;
         }
 
+        // szanse wszystkich graczy: moja decyzja znana, pozostali z profesją przedmiotu = „Chcę bardzo”, reszta = „Chcę”
+        function distribute(reqp, decision, players) {
+            const me = heroId();
+            const rows = players.map((p) => {
+                let dec;
+                if (p.id === me) {
+                    dec = decision;
+                    if (dec === MUST && reqp && p.prof && !profFits(reqp, p.prof)) dec = WANT;
+                } else dec = reqp && profFits(reqp, p.prof) ? MUST : WANT;
+                if (!reqp && dec === MUST) dec = WANT;
+                return { p, dec, pct: 0 };
+            });
+            const must = rows.filter((r) => r.dec === MUST);
+            const pool = must.length ? must : rows.filter((r) => r.dec === WANT);
+            pool.forEach((r) => { r.pct = 100 / pool.length; });
+            return rows;
+        }
+
         function pctClass(pct, decision) {
             if (decision === NOT) return 'pa-lc-off';
             if (pct >= 50) return 'pa-lc-hi';
             if (pct >= 20) return 'pa-lc-mid';
             return 'pa-lc-low';
         }
+
+        // ---------- tip po najechaniu na % ----------
+        const PROF_NAME = { w: 'Wojownik', p: 'Paladyn', b: 'Tancerz ostrzy', m: 'Mag', t: 'Tropiciel', h: 'Łowca' };
+        let lcTip = null;
+        let lcTipFor = null;
+
+        function fmtPct(v) {
+            const r = Math.round(v * 10) / 10;
+            return `${Number.isInteger(r) ? r : r.toFixed(1)}%`;
+        }
+
+        function tipHtml(info) {
+            const me = heroId();
+            const e = escapeHtmlPa;
+            const name = info.name ? `<span class="pa-st-name">${e(info.name)}</span>` : '<span class="pa-st-name">Kto może zdobyć</span>';
+            const COLS = { 'pa-lc-hi': '#5be38a', 'pa-lc-mid': '#ffd84d', 'pa-lc-low': '#ff6b6b', 'pa-lc-off': '#8a90a0' };
+            const color = COLS[Object.keys(COLS).find((k) => String(info.cls).includes(k))] || 'var(--pa-accent)';
+            const head = `<div class="pa-st-head" style="--st-c:${color}"><span class="pa-st-dot"></span>${name}</div>`;
+            if (info.owner) {
+                return head + `<div class="pa-st-simple">Łup z kolosa – bez losowania.<br>Właściciel: <b style="color:${info.owner.mine ? '#5be38a' : 'var(--pa-text)'}">${info.owner.mine ? 'ty' : e(info.owner.name || '?')}</b></div>`;
+            }
+            const profs = info.reqp ? info.reqp.split('').map((c) => PROF_NAME[c] || c).join(', ') : 'każda';
+            const rows = info.rows.slice().sort((a, b) => b.pct - a.pct || (a.p.id === me ? -1 : 0));
+            const decLabel = (r) => r.p.id === me
+                ? (r.dec === NOT ? 'Nie chcę' : r.dec === MUST ? 'Chcę bardzo' : 'Chcę')
+                : (r.dec === MUST ? 'Chcę bardzo*' : 'Chcę*');
+            const list = rows.map((r) => {
+                const mine = r.p.id === me;
+                const c = r.pct >= 50 ? '#5be38a' : r.pct >= 20 ? '#ffd84d' : r.pct > 0 ? '#ff6b6b' : '#8a90a0';
+                const nick = r.p.nick || (mine ? 'ty' : `#${r.p.id}`);
+                const lvl = r.p.lvl ? ` <em>${r.p.lvl}${e(r.p.prof || '')}</em>` : (r.p.prof ? ` <em>${e(r.p.prof)}</em>` : '');
+                return `<div class="pa-lc-row${mine ? ' pa-lc-me' : ''}${r.pct ? '' : ' pa-lc-zero'}">
+                    <div class="pa-lc-row-top"><span class="pa-lc-nick">${e(nick)}${lvl}</span><b style="color:${c}">${fmtPct(r.pct)}</b></div>
+                    <div class="pa-lc-row-sub"><span>${decLabel(r)}</span></div>
+                    <div class="pa-lc-bar"><i style="width:${Math.max(0, Math.min(100, r.pct))}%;background:${c}"></i></div>
+                  </div>`;
+            }).join('');
+            return head +
+                `<div class="pa-st-tags"><span class="pa-st-tag">Profesja: ${e(profs)}</span><span class="pa-st-tag">Graczy: ${rows.length}</span></div>` +
+                `<div class="pa-lc-rows">${list}</div>` +
+                '<div class="pa-st-hint">* decyzje innych nieznane – z profesją przedmiotu liczeni jako „Chcę bardzo”, pozostali jako „Chcę”.</div>';
+        }
+
+        function showLcTip(badge) {
+            const info = badge.__paLc;
+            if (!info) return hideLcTip();
+            if (!lcTip) {
+                lcTip = document.createElement('div');
+                lcTip.className = 'pa-tip pa-mm-stip pa-lc-tip';
+                document.body.appendChild(lcTip);
+            }
+            lcTipFor = badge;
+            lcTip.innerHTML = tipHtml(info);
+            lcTip.style.display = 'block';
+            const r = badge.getBoundingClientRect();
+            const w = lcTip.offsetWidth;
+            const h = lcTip.offsetHeight;
+            let top = r.top - h - 8;
+            if (top < 6) top = r.bottom + 8;
+            const left = Math.max(6, Math.min(window.innerWidth - w - 6, r.left + r.width / 2 - w / 2));
+            lcTip.style.left = `${left}px`;
+            lcTip.style.top = `${Math.max(6, Math.min(window.innerHeight - h - 6, top))}px`;
+            lcTip.classList.add('pa-show');
+        }
+
+        function hideLcTip() {
+            lcTipFor = null;
+            if (!lcTip) return;
+            lcTip.classList.remove('pa-show');
+            lcTip.style.display = 'none';
+        }
+
+        document.addEventListener('mouseover', (e) => {
+            const b = e.target.closest?.('.pa-lc-badge');
+            if (b) {
+                if (b !== lcTipFor) showLcTip(b);
+            } else if (lcTipFor) hideLcTip();
+        }, true);
 
         function render() {
             if (!state.lcEnabled) return clearDom();
@@ -2415,9 +2541,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const decision = readDecision(wrapper);
                 // łupy z kolosa: bez losowania, przedmiot przypisany od razu (pod nim nick właściciela)
                 const owner = colossusOwner(wrapper, id);
+                const rows = owner !== null ? null : distribute(reqp, decision, players);
                 const pct = owner !== null
                     ? (owner.mine ? 100 : 0)
-                    : chanceFor(reqp, decision, players);
+                    : (rows.find((r) => r.p.id === heroId())?.pct ?? chanceFor(reqp, decision, players));
 
                 const slot = itemEl.parentElement || itemEl;
                 if (getComputedStyle(slot).position === 'static') slot.style.position = 'relative';
@@ -2432,12 +2559,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 if (badge.textContent !== text) badge.textContent = text;
                 const cls = `pa-lc-badge ${owner !== null ? (owner.mine ? 'pa-lc-hi' : 'pa-lc-off') : pctClass(pct, decision)}`;
                 if (badge.className !== cls) badge.className = cls;
-                badge.title = owner !== null
-                    ? (owner.mine ? 'Przedmiot z kolosa przypisany do ciebie' : `Przedmiot z kolosa przypisany do: ${owner.name}`)
-                    : decision === NOT
-                    ? 'Wybrano „Nie chcę”'
-                    : `Szansa na zdobycie: ${rounded}%\nGraczy w drużynie: ${players.length}` +
-                      (reqp ? `\nProfesja przedmiotu: ${reqp}` : '');
+                badge.removeAttribute('title');
+                badge.__paLc = { owner, rows, reqp, cls, name: lootItems[id]?.name || itemEl.getAttribute('data-name') || '' };;
+                if (lcTipFor === badge) showLcTip(badge);
 
                 const isLeg = itemEl.getAttribute('data-item-type') === 't-leg' || Boolean(itemEl.querySelector('.highlight.t-leg'));
                 itemEl.classList.toggle('pa-lc-leg', state.lcPulse && isLeg);
@@ -2515,6 +2639,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
         function clearDom() {
             document.querySelectorAll('.pa-lc-badge').forEach((b) => b.remove());
+            hideLcTip();
             document.querySelectorAll('.pa-lc-leg').forEach((el) => el.classList.remove('pa-lc-leg'));
             document.querySelectorAll('.pa-lc-legwnd').forEach((el) => { el.classList.remove('pa-lc-legwnd'); el.__paLcRays = null; });
             document.querySelectorAll('.pa-lc-rays').forEach((r) => r.remove());
@@ -2564,7 +2689,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                         const src = w[key] || {};
                         const id = Number(src.id ?? key);
                         const prev = fightWarriors[id] || { id };
-                        fightWarriors[id] = { id, prof: src.prof ?? prev.prof, team: src.team ?? prev.team };
+                        fightWarriors[id] = { id, prof: src.prof ?? prev.prof, team: src.team ?? prev.team, nick: src.name ?? src.nick ?? prev.nick, lvl: src.lvl ?? prev.lvl };
                     });
                 }
             }
@@ -2575,7 +2700,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     Object.keys(members).forEach((key) => {
                         const m = members[key] || {};
                         const id = Number(m.id ?? key);
-                        partyMembers[id] = { id, prof: m.prof || '' };
+                        partyMembers[id] = { id, prof: m.prof || '', nick: m.nick || m.name || '', lvl: m.lvl };
                     });
                 } else if (!Object.keys(data.party).length) {
                     partyMembers = {};
@@ -2585,7 +2710,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 Object.keys(data.item).forEach((id) => {
                     const it = data.item[id] || {};
                     if (it.del) { delete lootItems[id]; return; }
-                    if (it.loc === 'l' || it.loc === 'k') lootItems[id] = { reqp: String(parseStat(it.stat).reqp || ''), loc: it.loc, own: it.own };
+                    if (it.loc === 'l' || it.loc === 'k') lootItems[id] = { reqp: String(parseStat(it.stat).reqp || ''), loc: it.loc, own: it.own, name: it.name || '' };
                     else if (it.loc && lootItems[id]) delete lootItems[id];
                 });
             }
@@ -2926,9 +3051,17 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             for (const a of c.list) (byCat[a.cat] = byCat[a.cat] || []).push(a.name);
             const body = Object.keys(byCat).map((cat) =>
                 (cat ? `<div class="pa-act-cat">${escapeHtmlPa(cat)}</div>` : '') +
-                byCat[cat].map((n) => `<div class="pa-act-item">${escapeHtmlPa(n)}</div>`).join('')).join('');
+                byCat[cat].map((n) => `<div class="pa-act-item">${bb(n)}</div>`).join('')).join('');
             const ago = Math.max(0, Math.round((Date.now() - c.at) / 60000));
-            return head + `<div class="pa-st-tags"><span class="pa-st-tag pa-st-acc">Do zrobienia: ${c.list.length}</span></div><div class="pa-act-list">${body}</div><div class="pa-st-hint">${ago ? `Stan sprzed ${ago} min` : 'Stan aktualny'}</div>`;
+            return head + `<div class="pa-st-tags"><span class="pa-st-tag pa-st-acc">Do zrobienia: ${c.list.length}</span></div><div class="pa-act-list">${body}</div><div class="pa-st-hint pa-act-foot"><span>${ago ? `Stan sprzed ${ago} min` : 'Stan aktualny'}</span>${c.list.length > 8 ? '<span><kbd>🖱</kbd>kółko – przewijaj</span>' : ''}</div>`;
+        }
+
+        // [i]…[/i], [b]…[/b] z opisów gry – reszta znaczników wycinana
+        function bb(text) {
+            return escapeHtmlPa(text)
+                .replace(/\[(\/?)(i|b|u)\]/gi, '<$1$2>')
+                .replace(/\[br\]/gi, ' ')
+                .replace(/\[\/?[a-z]+(=[^\]]*)?\]/gi, '');
         }
 
         function showTip(av) {
@@ -2940,8 +3073,12 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 tip.className = 'pa-tip pa-mm-stip pa-act-tip';
                 document.body.appendChild(tip);
             }
+            const keep = tipFor === av ? (tip.querySelector('.pa-act-list')?.scrollTop || 0) : 0;
             tipFor = av;
             tip.innerHTML = tipHtml(ch, cache[id]);
+            const listEl = tip.querySelector('.pa-act-list');
+            if (listEl && keep) listEl.scrollTop = keep;
+            updateFade(listEl);
             tip.style.display = 'block';
             const r = av.getBoundingClientRect();
             const w = tip.offsetWidth;
@@ -2953,6 +3090,27 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             tip.style.left = `${left}px`;
             tip.style.top = `${Math.max(6, Math.min(window.innerHeight - h - 6, top))}px`;
             tip.classList.add('pa-show');
+        }
+
+        // cień u dołu/góry listy, gdy jest co przewijać
+        function updateFade(listEl) {
+            if (!listEl) return;
+            const max = listEl.scrollHeight - listEl.clientHeight;
+            listEl.classList.toggle('pa-fade-b', max > 2 && listEl.scrollTop < max - 2);
+            listEl.classList.toggle('pa-fade-t', listEl.scrollTop > 2);
+        }
+
+        // kółko myszy nad postacią przewija listę w tipie
+        function onWheel(e) {
+            if (!tipFor || !tip || tip.style.display === 'none') return;
+            if (!tipFor.contains(e.target)) return;
+            const listEl = tip.querySelector('.pa-act-list');
+            if (!listEl || listEl.scrollHeight <= listEl.clientHeight) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const step = e.deltaMode === 1 ? e.deltaY * 18 : e.deltaY;
+            listEl.scrollBy({ top: step, behavior: Math.abs(step) > 60 ? 'smooth' : 'auto' });
+            setTimeout(() => updateFade(listEl), 180);
         }
 
         function hideTip() {
@@ -3001,6 +3159,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 });
                 bodyObs.observe(document.body, { childList: true, subtree: true });
                 document.addEventListener('mouseover', onOver, true);
+                document.addEventListener('wheel', onWheel, { capture: true, passive: false });
             }
             checkWindow();
         }
@@ -3009,6 +3168,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             bodyObs?.disconnect();
             bodyObs = null;
             document.removeEventListener('mouseover', onOver, true);
+            document.removeEventListener('wheel', onWheel, { capture: true });
             hideTip();
             document.querySelectorAll('.pa-act-badge').forEach((b) => b.remove());
             document.querySelectorAll('.relogger-window.pa-act-on').forEach((w) => w.classList.remove('pa-act-on'));
