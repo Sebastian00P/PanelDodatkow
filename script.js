@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.9';
+    const PANEL_VERSION = '6.0';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -59,6 +59,7 @@
         mmChaseAttack: true,
         mmGwAvail: false,             // tylko przejścia, do których da się dojść
         mmPos: null,
+        mmSideHidden: false,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
         // motyw gry (BETA)
@@ -100,7 +101,7 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos', 'mmSideHidden',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
         'lcEnabled', 'lcPulse', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone',
@@ -791,7 +792,13 @@ div[data-chat-message-id] a {
     .pa-lc-badge.pa-lc-off { color: #8a90a0; }
     .pa-lc-badge:hover { filter: brightness(1.25); box-shadow: 0 0 0 1px currentColor; }
     .pa-lc-tip { min-width: 220px; max-width: 280px; }
-    .pa-lc-rows { display: flex; flex-direction: column; gap: 5px; padding: 7px 10px 8px; max-height: 300px; overflow-y: auto; }
+    .pa-lc-rows { display: flex; flex-direction: column; gap: 5px; padding: 7px 8px 8px 10px; max-height: 300px; overflow-y: auto; overscroll-behavior: contain; }
+    .pa-lc-rows::-webkit-scrollbar { width: 6px; }
+    .pa-lc-rows::-webkit-scrollbar-track { background: rgba(255,255,255,.04); border-radius: 6px; margin: 4px 0; }
+    .pa-lc-rows::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--pa-accent) 60%, transparent); border-radius: 6px; }
+    .pa-lc-rows::-webkit-scrollbar-thumb:hover { background: var(--pa-accent); }
+    .pa-lc-rows::-webkit-scrollbar-button { display: none; height: 0; }
+    @supports not selector(::-webkit-scrollbar) { .pa-lc-rows { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--pa-accent) 60%, transparent) transparent; } }
     .pa-lc-row { padding: 5px 7px 6px; border-radius: 7px; border: 1px solid var(--pa-border); background: rgba(255,255,255,.025); }
     .pa-lc-row.pa-lc-me { border-color: color-mix(in srgb, var(--pa-accent) 60%, transparent); background: color-mix(in srgb, var(--pa-accent) 10%, transparent); }
     .pa-lc-row.pa-lc-zero { opacity: .55; }
@@ -1297,6 +1304,12 @@ div[data-chat-message-id] a {
     .pa-mm-head:active { cursor: grabbing; }
     .pa-mm-grip { color: var(--pa-muted); font-size: 11px; letter-spacing: -2px; opacity: .7; }
     .pa-mm-head .pa-mm-name { font-size: 11px; }
+    .pa-mm-sidetoggle {
+      margin-left: auto; flex: 0 0 auto; width: 20px; height: 18px; padding: 0;
+      border: 1px solid var(--pa-border); border-radius: 5px; background: rgba(0,0,0,.25);
+      color: var(--pa-muted); font: 700 12px/1 var(--pa-font); cursor: pointer;
+    }
+    .pa-mm-sidetoggle:hover, .pa-mm-sidetoggle.pa-on { color: var(--pa-accent); border-color: var(--pa-accent); }
     .pa-mm-tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
     .pa-mm-brand { font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
     .pa-mm-sep { display: none; }
@@ -2457,8 +2470,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             const me = heroId();
             const e = escapeHtmlPa;
             const name = info.name ? `<span class="pa-st-name">${e(info.name)}</span>` : '<span class="pa-st-name">Kto może zdobyć</span>';
-            const COLS = { 'pa-lc-hi': '#5be38a', 'pa-lc-mid': '#ffd84d', 'pa-lc-low': '#ff6b6b', 'pa-lc-off': '#8a90a0' };
-            const color = COLS[Object.keys(COLS).find((k) => String(info.cls).includes(k))] || 'var(--pa-accent)';
+            // kolor kropki = rzadkość przedmiotu: zwykły szary, unikat żółty, heroik niebieski, legenda czerwona
+            const RARITY_COL = { 't-norm': '#9aa0ad', 't-uniupg': '#ffd23f', 't-uni': '#ffd23f', 't-her': '#3d8bff', 't-leg': '#ff3b3b', 't-upgraded': '#ff54d7', 't-art': '#ff7a1a' };
+            const color = RARITY_COL[info.rarity] || '#9aa0ad';
             const head = `<div class="pa-st-head" style="--st-c:${color}"><span class="pa-st-dot"></span>${name}</div>`;
             if (info.owner) {
                 return head + `<div class="pa-st-simple">Łup z kolosa – bez losowania.<br>Właściciel: <b style="color:${info.owner.mine ? '#5be38a' : 'var(--pa-text)'}">${info.owner.mine ? 'ty' : e(info.owner.name || '?')}</b></div>`;
@@ -2493,8 +2507,12 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 lcTip.className = 'pa-tip pa-mm-stip pa-lc-tip';
                 document.body.appendChild(lcTip);
             }
+            // przy odświeżaniu zachowujemy przewinięcie listy graczy
+            const prevScroll = lcTipFor === badge ? (lcTip.querySelector('.pa-lc-rows')?.scrollTop || 0) : 0;
             lcTipFor = badge;
             lcTip.innerHTML = tipHtml(info);
+            const rowsBox = lcTip.querySelector('.pa-lc-rows');
+            if (rowsBox && prevScroll) rowsBox.scrollTop = prevScroll;
             lcTip.style.display = 'block';
             const r = badge.getBoundingClientRect();
             const w = lcTip.offsetWidth;
@@ -2513,6 +2531,17 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             lcTip.classList.remove('pa-show');
             lcTip.style.display = 'none';
         }
+
+        // kółko myszy nad % przewija listę graczy w dymku
+        window.addEventListener('wheel', (e) => {
+            if (!lcTipFor || !e.target.closest?.('.pa-lc-badge')) return;
+            const rowsBox = lcTip?.querySelector('.pa-lc-rows');
+            if (!rowsBox) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rowsBox.clientHeight : 1;
+            rowsBox.scrollTop += e.deltaY * unit;
+        }, { capture: true, passive: false });
 
         document.addEventListener('mouseover', (e) => {
             const b = e.target.closest?.('.pa-lc-badge');
@@ -2560,7 +2589,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const cls = `pa-lc-badge ${owner !== null ? (owner.mine ? 'pa-lc-hi' : 'pa-lc-off') : pctClass(pct, decision)}`;
                 if (badge.className !== cls) badge.className = cls;
                 badge.removeAttribute('title');
-                badge.__paLc = { owner, rows, reqp, cls, name: lootItems[id]?.name || itemEl.getAttribute('data-name') || '' };;
+                badge.__paLc = { owner, rows, reqp, cls, rarity: itemEl.getAttribute('data-item-type') || '', name: lootItems[id]?.name || itemEl.getAttribute('data-name') || '' };
                 if (lcTipFor === badge) showLcTip(badge);
 
                 const isLeg = itemEl.getAttribute('data-item-type') === 't-leg' || Boolean(itemEl.querySelector('.highlight.t-leg'));
@@ -7683,6 +7712,7 @@ function observeChatLinks() {
                 <span class="pa-mm-grip">⋮⋮</span>
                 <span class="pa-mm-brand">Nowa mapa</span>
                 <span class="pa-mm-name" data-mm-name></span>
+                <button type="button" class="pa-mm-sidetoggle" data-mm-side-toggle title="Schowaj / pokaż panel z graczami, przejściami i mobami">»</button>
               </div>
               <div class="pa-mm-map" data-mm-map>
                 <div class="pa-mm-objects" data-mm-objects></div>
@@ -7757,6 +7787,14 @@ function observeChatLinks() {
             });
             sideEl.addEventListener('mouseleave', hideSideTip);
             sideEl.addEventListener('scroll', hideSideTip, { passive: true });
+            el.querySelector('[data-mm-side-toggle]').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                state.mmSideHidden = !state.mmSideHidden;
+                saveSettings();
+                sideSig = null;
+                renderSide();
+            });
             el.querySelector('[data-mm-side]').addEventListener('contextmenu', (e) => {
                 const row = e.target.closest('[data-mm-kind]');
                 if (!row || !ALERT_WORD[row.getAttribute('data-mm-kind')]) return;
@@ -8596,7 +8634,12 @@ function observeChatLinks() {
             }
             sideSig = sig;
             hideSideTip();
-            side.classList.toggle('pa-visible', list.length > 0 || players.length > 0 || allGates.length > 0);
+            side.classList.toggle('pa-visible', !state.mmSideHidden && (list.length > 0 || players.length > 0 || allGates.length > 0));
+            const tgl = el.querySelector('[data-mm-side-toggle]');
+            if (tgl) {
+                tgl.textContent = state.mmSideHidden ? '«' : '»';
+                tgl.classList.toggle('pa-on', Boolean(state.mmSideHidden));
+            }
             const rowsCount = list.length + players.length + gates.length;
             side.classList.toggle('pa-mm-dense', rowsCount > 8);
             side.classList.toggle('pa-mm-xdense', rowsCount > 16);
