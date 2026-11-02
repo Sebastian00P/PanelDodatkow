@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0';
+    const PANEL_VERSION = '6.0.1';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -2361,10 +2361,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         // gracze w losowaniu: drużyna, a gdy jej brak – moja strona ostatniej walki
         function participants() {
             const me = heroId();
+            // walka solo (po mojej stronie tylko ja) – nikt z dawnej drużyny nie bierze udziału w losowaniu
+            const myTeam = fightWarriors[me]?.team;
+            if (myTeam !== undefined) {
+                const allies = Object.values(fightWarriors).filter((w) => w.id > 0 && w.team === myTeam);
+                if (allies.length === 1 && allies[0].id === me) {
+                    const hd0 = PAGE.Engine?.hero?.d || PAGE.hero || {};
+                    return [{ id: me, prof: heroProf(), nick: hd0.nick || '', lvl: hd0.lvl }];
+                }
+            }
             if (Object.keys(partyMembers).length < 2) readEngineParty();
             let list = Object.values(partyMembers).map((m) => ({ id: m.id, prof: m.prof || fightWarriors[m.id]?.prof || '', nick: m.nick || fightWarriors[m.id]?.nick || '', lvl: m.lvl || fightWarriors[m.id]?.lvl }));
             if (list.length < 2) {
-                const myTeam = fightWarriors[me]?.team;
                 list = myTeam === undefined ? [] : Object.values(fightWarriors)
                     .filter((w) => w.id > 0 && w.team === myTeam)
                     .map((w) => ({ id: w.id, prof: w.prof || '', nick: w.nick || '', lvl: w.lvl }));
@@ -2722,6 +2730,8 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     });
                 }
             }
+            // opuszczenie / rozwiązanie drużyny może przyjść jako pusty obiekt, null, false albo 0
+            if ('party' in data && (!data.party || typeof data.party !== 'object')) partyMembers = {};
             if (data.party && typeof data.party === 'object') {
                 const members = data.party.members;
                 if (members && typeof members === 'object') {
