@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.5';
+    const PANEL_VERSION = '5.9.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1130,6 +1130,8 @@ div[data-chat-message-id] a {
     /* aktywności w oknie przelogowywania */
     .pa-act-host { position: relative; overflow: visible !important; }
     .relogger-window .relogger__char-group { overflow: visible; }
+    /* miejsce na badge nad awatarami – kontener postaci ucina to, co wystaje */
+    .relogger-window.pa-act-on .relogger__characters { padding-top: 9px !important; padding-right: 6px !important; box-sizing: border-box; }
     .pa-act-badge {
       position: absolute; top: -7px; right: -7px; z-index: 5; pointer-events: none;
       min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box; border-radius: 9px;
@@ -2889,6 +2891,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         function render() {
             const win = document.querySelector('.relogger-window');
             if (!win || !state.acEnabled) return;
+            win.classList.add('pa-act-on');
             for (const [av, ch] of matchAvatars(win)) {
                 av.dataset.paActChar = ch.id;
                 av.classList.add('pa-act-host');
@@ -3008,6 +3011,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             document.removeEventListener('mouseover', onOver, true);
             hideTip();
             document.querySelectorAll('.pa-act-badge').forEach((b) => b.remove());
+            document.querySelectorAll('.relogger-window.pa-act-on').forEach((w) => w.classList.remove('pa-act-on'));
         }
 
         function init() {
