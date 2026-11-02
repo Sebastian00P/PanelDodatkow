@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.3';
+    const PANEL_VERSION = '5.9.4';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -57,6 +57,7 @@
         mmShowSpawns: true,
         mmSpawnRange: 10,             // zasięg wykrywania herosa ze respu (kratki)
         mmChaseAttack: true,
+        mmGwAvail: false,             // tylko przejścia, do których da się dojść
         mmPos: null,
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
@@ -74,6 +75,9 @@
         ucEnabled: false,
         // godzina zdobycia przedmiotu
         ltEnabled: false,
+        // aktywności w oknie przelogowywania
+        acEnabled: false,
+        acShowDone: true,
         lcPulse: true,
     };
 
@@ -96,10 +100,10 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmPos',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
-        'lcEnabled', 'lcPulse', 'ucEnabled', 'ltEnabled',
+        'lcEnabled', 'lcPulse', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone',
     ];
 
     function loadSettings() {
@@ -1123,6 +1127,36 @@ div[data-chat-message-id] a {
     .pa-mm-go.pa-mm-stop:hover { background: var(--pa-danger); color: #fff; }
     .pa-mm-row.pa-mm-chasing { border-color: var(--pa-danger); box-shadow: 0 0 0 1px rgba(255,93,108,.35); }
     .pa-mm-side-title + .pa-mm-row ~ .pa-mm-side-title { margin-top: 6px; }
+    /* aktywności w oknie przelogowywania */
+    .pa-act-host { position: relative; overflow: visible !important; }
+    .relogger-window .relogger__char-group { overflow: visible; }
+    .pa-act-badge {
+      position: absolute; top: -7px; right: -7px; z-index: 5; pointer-events: none;
+      min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font: 800 10px/1 var(--pa-font, sans-serif); color: #fff;
+      background: linear-gradient(180deg, #ff5a68, #d81f33);
+      border: 1px solid rgba(0,0,0,.6);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset, 0 2px 6px rgba(0,0,0,.6), 0 0 8px rgba(255,77,90,.55);
+      animation: paActPop .18s ease-out;
+    }
+    .pa-act-badge.pa-act-done { background: linear-gradient(180deg, #3ed16a, #129a3e); box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset, 0 2px 6px rgba(0,0,0,.6); font-size: 9px; }
+    @keyframes paActPop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .pa-act-tip { max-width: 300px; }
+    .pa-act-list { padding: 6px 10px 8px; max-height: 320px; overflow: auto; }
+    .pa-act-cat { font: 700 9.5px var(--pa-font); letter-spacing: .5px; text-transform: uppercase; color: var(--pa-accent); margin: 6px 0 3px; }
+    .pa-act-cat:first-child { margin-top: 0; }
+    .pa-act-item { position: relative; padding: 2px 0 2px 12px; color: var(--pa-text); }
+    .pa-act-item::before { content: ''; position: absolute; left: 2px; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--pa-accent); box-shadow: 0 0 5px var(--pa-accent); }
+    .pa-mm-side-title.pa-mm-title-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .pa-mm-avail { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; text-transform: none; letter-spacing: 0; font: 600 10.5px var(--pa-font); color: var(--pa-muted); }
+    .pa-mm-avail:hover { color: var(--pa-text); }
+    .pa-mm-avail input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--pa-border-strong); background: rgba(255,255,255,.04); display: grid; place-items: center; cursor: pointer; transition: background .12s, border-color .12s; }
+    .pa-mm-avail input:checked { background: var(--pa-accent); border-color: var(--pa-accent); }
+    .pa-mm-avail input:checked::after { content: ''; width: 3px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+    .pa-mm-avail.pa-on { color: var(--pa-accent); }
+    .pa-mm-avail.pa-nodata { opacity: .5; }
+    .pa-mm-empty { font-size: 10.5px; color: var(--pa-muted); padding: 4px 2px; }
     .pa-mm-map {
       position: relative;
       overflow: hidden;
@@ -1389,9 +1423,33 @@ div[data-chat-message-id] a {
       border-bottom: 1px solid var(--pa-border) !important;
       padding: 7px 10px !important;
     }
+    /* Hide and seek – kolory z motywu panelu */
     #pilnowacz-box {
-      padding-top: 6px !important;
-      padding-bottom: 6px !important;
+      background: var(--pa-bg) !important;
+      backdrop-filter: var(--pa-blur) !important;
+      color: var(--pa-text) !important;
+      border: 1px solid var(--pa-border-strong) !important;
+      border-left: 3px solid var(--pa-accent) !important;
+      border-radius: 10px !important;
+      box-shadow: var(--pa-shadow), 0 0 14px color-mix(in srgb, var(--pa-accent) 30%, transparent) !important;
+      font: 12px/1.55 var(--pa-font) !important;
+      padding: 7px 11px 7px 9px !important;
+    }
+    #pilnowacz-box > div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    #pilnowacz-box .pa-hns-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--pa-accent); box-shadow: 0 0 6px var(--pa-accent); }
+    #pilnowacz-box .pa-hns-label { color: var(--pa-muted); }
+    #pilnowacz-box .pilnowacz-count { margin-left: auto; padding-left: 8px; font-variant-numeric: tabular-nums; }
+    #pilnowacz-box .pilnowacz-count.pa-hns-mid { color: #ffd84d !important; }
+    #pilnowacz-box .pilnowacz-count.pa-hns-high { color: var(--pa-danger) !important; text-shadow: 0 0 6px color-mix(in srgb, var(--pa-danger) 60%, transparent); }
+    #pilnowacz-tooltip {
+      background: var(--pa-bg-solid) !important;
+      color: var(--pa-text) !important;
+      border: 1px solid var(--pa-border-strong) !important;
+      border-top: 2px solid var(--pa-accent) !important;
+      border-radius: 8px !important;
+      box-shadow: var(--pa-shadow) !important;
+      font: 11.5px/1.45 var(--pa-font) !important;
+      padding: 7px 10px !important;
     }
   `;
 
@@ -1421,6 +1479,8 @@ div[data-chat-message-id] a {
             { id: 'mroz', name: 'Mróz', bg: '#070C12', panel: '#0E1824', accent: '#4FA9E8', text: '#EAF6FF', hl: '#BDF0FF' },
             { id: 'krew', name: 'Krew', bg: '#140203', panel: '#240407', accent: '#FF0A1E', text: '#FFE8EA', hl: '#FFD24D', accentHi: '#FF3B4A' },
             { id: 'szafir', name: 'Szafir', bg: '#01040F', panel: '#040C26', accent: '#0A4BFF', text: '#E8EEFF', hl: '#5CE1FF', accentHi: '#3D7BFF' },
+            { id: 'cyberpunk', name: 'Cyberpunk', bg: '#07070A', panel: '#121218', accent: '#F5E000', text: '#FCF8D2', hl: '#00F0FF', accentHi: '#FFEE33', panel2: '#1A1A22' },
+            { id: 'neonroz', name: 'Neon róż', bg: '#14010D', panel: '#260519', accent: '#FF1FA9', text: '#FFE6F6', hl: '#FFB3E6', accentHi: '#FF5CC4', panel2: '#330A22' },
         ];
         const CUSTOM_KEYS = [
             ['bg', 'Tło'],
@@ -2667,6 +2727,306 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
     })();
 
     // ------------------------------------------------------------------
+    //  AKTYWNOŚCI – w oknie przelogowywania kółko z liczbą aktywności
+    //  do zrobienia nad każdą postacią + lista po najechaniu.
+    //  Lista postaci: public-api …/account/charlist, aktywności:
+    //  zapytanie „activities&action=show&targetId=…” (przechwytywane,
+    //  żeby gra nie otwierała swojego okna).
+    // ------------------------------------------------------------------
+    const activities = (function () {
+        const CACHE_KEY = 'pa_activities_cache_v1';
+        const FRESH_MS = 3 * 60 * 1000;
+        let chars = null;
+        let charsAt = 0;
+        let charsLoading = null;
+        let cache = {};             // charId -> { at, nick, list:[{name, cat}] , total }
+        let queue = [];
+        let busy = false;
+        let bodyObs = null;
+        let tip = null;
+        let tipFor = null;
+        let renderQueued = false;
+
+        try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') || {}; } catch (_) { cache = {}; }
+        const saveCache = () => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (_) {} };
+
+        const worldName = () => String(location.hostname.split('.')[0] || '').toLowerCase();
+        const normWorld = (w) => String(w || '').toLowerCase().replace(/^#/, '').replace(/\..*$/, '');
+
+        // reset aktywności: o północy i po przerwie o 5:25 – dane sprzed tego są nieaktualne
+        function lastReset() {
+            const now = new Date();
+            const r = new Date(now);
+            r.setHours(5, 25, 0, 0);
+            if (now < r) r.setHours(0, 0, 0, 0);
+            return r.getTime();
+        }
+        const isValid = (c) => c && c.at >= lastReset();
+
+        function getCookie(name) {
+            const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+            return m ? decodeURIComponent(m[1]) : '';
+        }
+
+        async function loadChars() {
+            if (chars && Date.now() - charsAt < 10 * 60 * 1000) return chars;
+            if (charsLoading) return charsLoading;
+            const host = /margonem\.com$/.test(location.hostname) ? 'https://public-api.margonem.com' : 'https://public-api.margonem.pl';
+            charsLoading = (async () => {
+                try {
+                    const r = await fetch(`${host}/account/charlist?hs3=${encodeURIComponent(getCookie('hs3'))}`, { credentials: 'include' });
+                    const list = await r.json();
+                    if (Array.isArray(list) && list.length) {
+                        chars = list;
+                        charsAt = Date.now();
+                    }
+                } catch (error) {
+                    console.warn('[darksad-addon] aktywności: charlist', error);
+                }
+                charsLoading = null;
+                return chars;
+            })();
+            return charsLoading;
+        }
+
+        function activeFrom(show) {
+            const cats = {};
+            for (const c of show.categories || []) cats[c.id] = c.name;
+            const all = Array.isArray(show.activities) ? show.activities : Object.values(show.activities || {});
+            const todo = all.filter((a) => a && !a.isDone && a.isAvailable !== false)
+                .map((a) => ({ name: a.name || a.title || `Aktywność ${a.id}`, cat: cats[a.category] || '' }));
+            return { list: todo, total: all.length };
+        }
+
+        function fetchOne(id) {
+            return new Promise((resolve) => {
+                let done = false;
+                const finish = (v) => { if (!done) { done = true; resolve(v); } };
+                const off = net.intercept('activities', (val) => {
+                    if (!val || !val.show) return false;
+                    if (val.show.targetId !== undefined && String(val.show.targetId) !== String(id)) return false;
+                    finish(val.show);
+                    return true;           // gra nie dostaje tej odpowiedzi – nie otwiera okna
+                });
+                if (!net.send(`activities&action=show&targetId=${id}`)) finish(null);
+                setTimeout(() => { off(); finish(null); }, 6000);
+            });
+        }
+
+        async function pump() {
+            if (busy) return;
+            busy = true;
+            while (queue.length) {
+                const ch = queue.shift();
+                const show = await fetchOne(ch.id);
+                if (show) {
+                    cache[ch.id] = Object.assign({ at: Date.now(), nick: ch.nick }, activeFrom(show));
+                    saveCache();
+                    queueRender();
+                }
+                await new Promise((r) => setTimeout(r, 350));
+            }
+            busy = false;
+        }
+
+        async function refresh(force = false) {
+            if (!state.acEnabled) return;
+            const list = await loadChars();
+            if (!list) return;
+            const w = worldName();
+            for (const ch of list) {
+                if (normWorld(ch.world) !== w) continue;
+                const c = cache[ch.id];
+                if (!force && c && isValid(c) && Date.now() - c.at < FRESH_MS) continue;
+                if (!queue.some((q) => q.id === ch.id)) queue.push({ id: ch.id, nick: ch.nick });
+            }
+            queueRender();
+            pump();
+        }
+
+        // ---------- dopasowanie awatarów okna do postaci ----------
+        function avatarIcon(av) {
+            const img = av.querySelector('.img-avatar-correct');
+            const m = img && (img.style.backgroundImage || '').match(/url\(["']?(.*?)["']?\)/);
+            return m ? m[1] : '';
+        }
+
+        function matchAvatars(win) {
+            const out = [];
+            if (!chars) return out;
+            for (const grp of win.querySelectorAll('.relogger__char-group')) {
+                const world = normWorld(grp.getAttribute('data-world'));
+                const pool = chars.filter((c) => normWorld(c.world) === world);
+                const used = new Set();
+                const avs = Array.from(grp.querySelectorAll('.relogger__one-character'));
+                const pending = [];
+                for (const av of avs) {
+                    const url = avatarIcon(av).replace(/\/{2,}/g, '/');
+                    const hit = pool.filter((c) => !used.has(c.id) && c.icon && url.endsWith(String(c.icon).replace(/^\/+/, '').replace(/\/{2,}/g, '/')));
+                    if (hit.length === 1) {
+                        used.add(hit[0].id);
+                        out.push([av, hit[0]]);
+                    } else pending.push(av);
+                }
+                // reszta (np. kilka postaci z tym samym wyglądem) – po kolejności
+                const rest = pool.filter((c) => !used.has(c.id));
+                pending.forEach((av, i) => { if (rest[i]) out.push([av, rest[i]]); });
+            }
+            return out;
+        }
+
+        function queueRender() {
+            if (renderQueued) return;
+            renderQueued = true;
+            requestAnimationFrame(() => {
+                renderQueued = false;
+                render();
+            });
+        }
+
+        function render() {
+            const win = document.querySelector('.relogger-window');
+            if (!win || !state.acEnabled) return;
+            for (const [av, ch] of matchAvatars(win)) {
+                av.dataset.paActChar = ch.id;
+                av.classList.add('pa-act-host');
+                const c = cache[ch.id];
+                let badge = av.querySelector('.pa-act-badge');
+                const ok = c && isValid(c);
+                if (!ok || (!c.list.length && !state.acShowDone)) {
+                    badge?.remove();
+                    continue;
+                }
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'pa-act-badge';
+                    av.appendChild(badge);
+                }
+                const n = c.list.length;
+                badge.classList.toggle('pa-act-done', n === 0);
+                badge.textContent = n ? String(n) : '✓';
+            }
+            if (tipFor && tipFor.isConnected) showTip(tipFor);
+        }
+
+        // ---------- tip ----------
+        function tipHtml(ch, c) {
+            const head = `<div class="pa-st-head" style="--st-c:var(--pa-accent)"><span class="pa-st-dot"></span><span class="pa-st-name">${escapeHtmlPa(ch.nick || c?.nick || '?')}${ch.lvl ? ` <span style="color:var(--pa-muted);font-weight:600">(${ch.lvl}${escapeHtmlPa(ch.prof || '')})</span>` : ''}</span></div>`;
+            if (!c || !isValid(c)) {
+                const other = normWorld(ch.world) !== worldName();
+                return head + `<div class="pa-st-simple" style="color:var(--pa-muted)">${other ? 'Postać z innego świata – aktywności pojawią się po wejściu na jej świat.' : 'Wczytuję aktywności…'}</div>`;
+            }
+            if (!c.list.length) return head + '<div class="pa-st-simple" style="color:#7dff8a">Wszystkie aktywności zrobione ✓</div>';
+            const byCat = {};
+            for (const a of c.list) (byCat[a.cat] = byCat[a.cat] || []).push(a.name);
+            const body = Object.keys(byCat).map((cat) =>
+                (cat ? `<div class="pa-act-cat">${escapeHtmlPa(cat)}</div>` : '') +
+                byCat[cat].map((n) => `<div class="pa-act-item">${escapeHtmlPa(n)}</div>`).join('')).join('');
+            const ago = Math.max(0, Math.round((Date.now() - c.at) / 60000));
+            return head + `<div class="pa-st-tags"><span class="pa-st-tag pa-st-acc">Do zrobienia: ${c.list.length}</span></div><div class="pa-act-list">${body}</div><div class="pa-st-hint">${ago ? `Stan sprzed ${ago} min` : 'Stan aktualny'}</div>`;
+        }
+
+        function showTip(av) {
+            const id = av.dataset.paActChar;
+            const ch = chars?.find((c) => String(c.id) === String(id));
+            if (!ch) return hideTip();
+            if (!tip) {
+                tip = document.createElement('div');
+                tip.className = 'pa-tip pa-mm-stip pa-act-tip';
+                document.body.appendChild(tip);
+            }
+            tipFor = av;
+            tip.innerHTML = tipHtml(ch, cache[id]);
+            tip.style.display = 'block';
+            const r = av.getBoundingClientRect();
+            const w = tip.offsetWidth;
+            const h = tip.offsetHeight;
+            let left = r.left + r.width / 2 - w / 2;
+            let top = r.top - h - 10;
+            if (top < 6) top = r.bottom + 10;
+            left = Math.max(6, Math.min(window.innerWidth - w - 6, left));
+            tip.style.left = `${left}px`;
+            tip.style.top = `${Math.max(6, Math.min(window.innerHeight - h - 6, top))}px`;
+            tip.classList.add('pa-show');
+        }
+
+        function hideTip() {
+            tipFor = null;
+            if (!tip) return;
+            tip.classList.remove('pa-show');
+            tip.style.display = 'none';
+        }
+
+        function onOver(e) {
+            if (!state.acEnabled) return;
+            const av = e.target.closest?.('.relogger-window .relogger__one-character[data-pa-act-char]');
+            if (!av) {
+                if (tipFor) hideTip();
+                return;
+            }
+            if (av !== tipFor) showTip(av);
+        }
+
+        let lastSeenWin = null;
+        function checkWindow() {
+            const win = document.querySelector('.relogger-window');
+            if (win && win !== lastSeenWin) {
+                lastSeenWin = win;
+                refresh();
+            }
+            if (!win) {
+                lastSeenWin = null;
+                hideTip();
+                return;
+            }
+            queueRender();
+        }
+
+        function enable() {
+            if (!bodyObs) {
+                bodyObs = new MutationObserver((muts) => {
+                    for (const m of muts) {
+                        const t = m.target;
+                        if (t.nodeType === 1 && (t.closest?.('.relogger-window') || Array.from(m.addedNodes).some((n) => n.nodeType === 1 && (n.matches?.('.relogger-window, .relogger__one-character') || n.querySelector?.('.relogger__one-character'))))) {
+                            if (Array.from(m.addedNodes).some((n) => n.nodeType === 1 && n.classList?.contains('pa-act-badge'))) continue;
+                            checkWindow();
+                            return;
+                        }
+                    }
+                });
+                bodyObs.observe(document.body, { childList: true, subtree: true });
+                document.addEventListener('mouseover', onOver, true);
+            }
+            checkWindow();
+        }
+
+        function disable() {
+            bodyObs?.disconnect();
+            bodyObs = null;
+            document.removeEventListener('mouseover', onOver, true);
+            hideTip();
+            document.querySelectorAll('.pa-act-badge').forEach((b) => b.remove());
+        }
+
+        function init() {
+            // zmiana stanu aktywności na bieżącej postaci – dane do odświeżenia
+            net.on('activities', (val) => {
+                if (val && !val.show) {
+                    const id = net.heroId();
+                    if (cache[id]) cache[id].at = 0;
+                }
+            });
+            if (state.acEnabled) enable();
+        }
+
+        return {
+            init,
+            render: queueRender,
+            setEnabled(on) { if (on) { enable(); refresh(true); } else disable(); },
+        };
+    })();
+
+    // ------------------------------------------------------------------
     //  GODZINA ZDOBYCIA – w tipie przedmiotu przy „W dniu … został(a)
     //  pokonany(a) …” dopisuje dokładną godzinę i (jeśli gra ją zapisuje)
     //  liczbę osób w drużynie. Dane ze statystyki „loot” przedmiotu.
@@ -2869,7 +3229,6 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '🗺️',
             name: 'Nowa mapa',
             tag: 'Interfejs',
-            isNew: true,
             desc: 'Nowa mapa podręczna zamiast tej z gry: cała lokacja z zaznaczonymi mobami, elitami, herosami, NPC, graczami (sojusznicy, wrogowie) i przejściami, prostokąt widoku, współrzędne pod kursorem i wyszukiwarka (nazwa albo „x,y”). Kliknięcie na mapie = idź tam. Otwiera się zamiast mapy podręcznej z gry.',
             settings: () => `
               <div class="pa-row">
@@ -2893,7 +3252,6 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '🎽',
             name: 'Zmieniacz zestawów',
             tag: 'Ekwipunek',
-            isNew: true,
             desc: 'Okienko z zestawami ekwipunku – nazwy pobierane prosto z gry. Kliknięcie zakłada zestaw. Jeśli trwa walka, zmiana jest kolejkowana i wykonywana od razu po jej zakończeniu (ponowne kliknięcie anuluje). PPM na zestawie – zmiana nazwy. Tryb AI sam zakłada zestaw przypisany do profesji najbliższego wroga. Okienko można przesuwać i rozciągać za prawy dolny róg.',
             settings: () => `
               <p class="pa-hint" data-pa-b-hero style="color:var(--pa-accent)"></p>
@@ -2913,7 +3271,6 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '⚔️',
             name: 'Berserker',
             tag: 'Walka',
-            isNew: true,
             desc: 'Mała ikonka między tarczą a przyciskiem „Rozwiń” przy ekwipunku, która jednym kliknięciem włącza lub wyłącza automatyczne atakowanie mobów (berserk z ustawień gry). W grupie przełącza berserk drużynowy. Ikonkę można przeciągnąć w inne miejsce.',
             settings: () => `
               <div class="pa-split">
@@ -2929,7 +3286,6 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '↔️',
             name: 'Gracze na mapie – rozmiar',
             tag: 'Interfejs',
-            isNew: true,
             desc: 'Pozwala dowolnie zmieniać szerokość i wysokość okna „Gracze na mapie” – złap uchwyt w prawym dolnym rogu okna. Rozmiar jest zapamiętywany.',
             settings: () => `
               <p class="pa-hint" data-pa-who-size></p>
@@ -2999,8 +3355,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '🎨',
             name: 'Motyw',
             tag: 'Interfejs',
-            isNew: true,
-            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 12 gotowych palet (przewijane) albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
+            desc: 'Przekolorowuje interfejs gry: panele, czat, ekwipunek, sloty, paski życia i doświadczenia, okna sklepu i ramkę gry. 14 gotowych palet (przewijane) albo własna z 4 kolorów. Cienie można wyłączać grupami, a kolory tipów przedmiotów zostają bez zmian.',
             settings: () => ptTheme.settingsHtml(),
         },
         {
@@ -3009,8 +3364,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '💎',
             name: 'Koszty ulepszeń',
             tag: 'Ekwipunek',
-            isNew: true,
             desc: 'W tipie legendarnego przedmiotu dopisuje koszt ulepszeń: punkty ulepszenia na +1…+5, ich sumę od +0 do +5, koszt złota na +5 i potrzebną esencję – liczone z wymaganego poziomu przedmiotu.',
+        },
+        {
+            key: 'activities',
+            stateKey: 'acEnabled',
+            icon: '📋',
+            name: 'Aktywności',
+            tag: 'Interfejs',
+            desc: 'W oknie przelogowywania nad każdą postacią z tego świata pokazuje kółko z liczbą aktywności do zrobienia (dostępnych i jeszcze nieukończonych), np. „Pokonaj kolosa”. Po najechaniu na postać – lista tych aktywności. Dane z panelu aktywności gry, odświeżane przy otwarciu okna.',
+            settings: () => `
+              <label class="pa-check"><input type="checkbox" data-pa-opt="acShowDone"> Pokazuj zielony ✓, gdy postać ma wszystko zrobione</label>
+              <p class="pa-hint">Gra pokazuje aktywności tylko postaci z aktualnego świata. Postacie z innych światów dostaną kółko, gdy wejdziesz na ich świat (dane z dzisiaj są zapamiętywane).</p>`,
         },
         {
             key: 'loottime',
@@ -3027,7 +3392,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             icon: '🎲',
             name: 'Szansa na łup',
             tag: 'Łupy',
-            beta: true,
+            section: 'wyglad',
             desc: 'W oknie łupów po walce pokazuje nad każdym przedmiotem szacowaną szansę (%) na to, że trafi do ciebie – czyli 100% podzielone przez liczbę chętnych: przy „Chcę bardzo” przez liczbę graczy w drużynie z profesją przedmiotu, przy „Chcę” i przy przedmiotach bez profesji przez całą drużynę. Gdy wypadnie legenda, za oknem łupów pojawiają się złote promienie, okno świeci, a legenda pulsuje.',
             settings: () => `
               <label class="pa-check"><input type="checkbox" data-pa-opt="lcPulse"> Efekt legendy: złote promienie i poświata okna łupów, pulsujące powiększanie przedmiotu</label>
@@ -3748,6 +4113,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             upgradeCosts.setEnabled(on);
             showToast(on ? 'Koszty ulepszeń włączone' : 'Koszty ulepszeń wyłączone');
         },
+        activities(on) {
+            activities.setEnabled(on);
+            showToast(on ? 'Aktywności włączone – otwórz okno przelogowywania' : 'Aktywności wyłączone');
+        },
         loottime(on) {
             lootTime.setEnabled(on);
             showToast(on ? 'Godzina zdobycia włączona' : 'Godzina zdobycia wyłączona');
@@ -4295,13 +4664,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 players
             } = obj;
 
-            let color = "#e9dbff";
-
-            if (count >= 5 && count <= 8) {
-                color = "#ffd966";
-            } else if (count > 8) {
-                color = "#ff4d4d";
-            }
+            const lvlCls = count > 8 ? ' pa-hns-high' : (count >= 5 ? ' pa-hns-mid' : '');
 
             const tooltipData = players.map(p =>
                 `${p.n} (${p.l}${p.p})`
@@ -4309,12 +4672,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
             html += `
             <div>
-                🔹 ${label}:
-                <b class="pilnowacz-count"
-                   data-tooltip="${tooltipData}"
-                   style="color:${color}; cursor:pointer;">
-                   ${count}
-                </b>
+                <span class="pa-hns-dot"></span><span class="pa-hns-label">${label}</span>
+                <b class="pilnowacz-count${lvlCls}"
+                   data-tooltip="${escapeHtmlPa(tooltipData)}"
+                   style="cursor:pointer;">${count}</b>
             </div>
         `;
         }
@@ -5236,6 +5597,42 @@ function observeChatLinks() {
             }
         }
 
+        // przechwycenie odpowiedzi ZANIM dostanie ją gra (np. nasze zapytania, które nie mają otwierać okien)
+        const interceptors = {};
+        function intercept(key, fn) {
+            const list = (interceptors[key] = interceptors[key] || []);
+            list.push(fn);
+            return () => {
+                const i = list.indexOf(fn);
+                if (i > -1) list.splice(i, 1);
+            };
+        }
+        function applyInterceptors(data) {
+            let keys = null;
+            for (const k in interceptors) if (interceptors[k].length) (keys = keys || []).push(k);
+            if (!keys) return data;
+            const isStr = typeof data === 'string';
+            let obj;
+            try { obj = isStr ? JSON.parse(data) : data; } catch (_) { return data; }
+            if (!obj || typeof obj !== 'object') return data;
+            let changed = false;
+            for (const k of keys) {
+                if (obj[k] === undefined) continue;
+                const list = interceptors[k];
+                for (let i = 0; i < list.length; i++) {
+                    let consumed = false;
+                    try { consumed = list[i](obj[k], obj) === true; } catch (error) { console.warn('[darksad-addon] intercept', k, error); }
+                    if (consumed) {
+                        list.splice(i, 1);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            if (!changed) return data;
+            return isStr ? JSON.stringify(obj) : obj;
+        }
+
         function tryHook() {
             if (hooked) return true;
             const engine = PAGE.Engine;
@@ -5243,6 +5640,13 @@ function observeChatLinks() {
             if (comm && typeof comm.parseJSON === 'function') {
                 const original = comm.parseJSON;
                 comm.parseJSON = function (data) {
+                    try {
+                        const nd = applyInterceptors(data);
+                        if (nd !== data) {
+                            data = nd;
+                            arguments[0] = nd;
+                        }
+                    } catch (_) {}
                     let result;
                     try {
                         result = original.apply(this, arguments);
@@ -5304,7 +5708,7 @@ function observeChatLinks() {
             }
         }
 
-        return { on, onAny, start, send, heroId, heroLvl, isHooked: () => hooked };
+        return { on, onAny, intercept, start, send, heroId, heroLvl, isHooked: () => hooked };
     })();
 
     function escapeHtmlPa(v) {
@@ -7159,6 +7563,14 @@ function observeChatLinks() {
                 syncUi();
             }));
             const sideEl = el.querySelector('[data-mm-side]');
+            sideEl.addEventListener('change', (e) => {
+                if (!e.target.matches('[data-mm-avail]')) return;
+                state.mmGwAvail = e.target.checked;
+                saveSettings();
+                sideSig = null;
+                hideSideTip();
+                renderSide();
+            });
             sideEl.addEventListener('mouseover', (e) => {
                 const t = e.target.closest('[data-mm-tip-text], [data-mm-tip]');
                 if (!t || !sideEl.contains(t)) return hideSideTip();
@@ -7648,6 +8060,99 @@ function observeChatLinks() {
         let gwWalk = null;
         let gwTimer = null;
 
+        // ---------- kolizje mapy (pakiet „cl”) i osiągalność ----------
+        let colStr = '';
+        let colMapKey = '';
+        let reachCache = { key: '', set: null };
+
+        function decodeCollisions(enc) {
+            const out = [];
+            for (let i = 0; i < enc.length; i++) {
+                let c = enc.charCodeAt(i);
+                if (c > 95 && c < 123) {
+                    for (let k = 95; k < c; k++) out.push('000000');
+                } else {
+                    c -= 32;
+                    let b = '';
+                    for (let k = 0; k < 6; k++) b += (c & (1 << k)) ? '1' : '0';
+                    out.push(b);
+                }
+            }
+            return out.join('');
+        }
+
+        net.on('cl', (cl) => {
+            if (typeof cl !== 'string') return;
+            colStr = decodeCollisions(cl);
+            colMapKey = town ? String(town.id) : '';
+            reachCache.key = '';
+            sideSig = null;
+        });
+
+        // zwraca funkcję (x,y) => true gdy kratka zablokowana; null gdy brak danych
+        function collisionFn() {
+            const w = town?.w || Number(PAGE.Engine?.map?.size?.x) || 0;
+            const h = town?.h || Number(PAGE.Engine?.map?.size?.y) || 0;
+            if (!w || !h) return null;
+            if (colStr && colStr.length >= w * h && (!town || !colMapKey || colMapKey === String(town.id))) {
+                return (x, y) => colStr[x + y * w] === '1';
+            }
+            try {
+                const col = PAGE.Engine?.map?.col;
+                if (col && typeof col.check === 'function') return (x, y) => Boolean(col.check(x, y));
+                const str = typeof col === 'string' ? col : (typeof col?.c === 'string' ? col.c : '');
+                if (str && str.length >= w * h) return (x, y) => str[x + y * w] === '1';
+            } catch (_) {}
+            try {
+                const old = PAGE.map?.col;
+                if (typeof old === 'string' && old.length >= w * h) return (x, y) => old[x + y * w] === '1';
+            } catch (_) {}
+            return null;
+        }
+
+        // kratki osiągalne pieszo z pozycji postaci (BFS, ruch w 4 kierunkach)
+        function reachableSet() {
+            const h = heroPos();
+            const w = town?.w || Number(PAGE.Engine?.map?.size?.x) || 0;
+            const hh = town?.h || Number(PAGE.Engine?.map?.size?.y) || 0;
+            if (!h || !w || !hh) return null;
+            const isCol = collisionFn();
+            if (!isCol) return null;
+            const sx = Math.round(Number(h.x));
+            const sy = Math.round(Number(h.y));
+            const key = `${town?.id}|${sx},${sy}|${colStr.length}`;
+            if (reachCache.key === key) return reachCache.set;
+            const seen = new Uint8Array(w * hh);
+            const q = [sx + sy * w];
+            seen[q[0]] = 1;
+            for (let qi = 0; qi < q.length; qi++) {
+                const i = q[qi];
+                const x = i % w;
+                const y = (i - x) / w;
+                const nb = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+                for (const [nx, ny] of nb) {
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= hh) continue;
+                    const ni = nx + ny * w;
+                    if (seen[ni]) continue;
+                    if (isCol(nx, ny)) {
+                        seen[ni] = 2;         // ściana sąsiadująca z dostępnym terenem (np. przejście w ścianie)
+                        continue;
+                    }
+                    seen[ni] = 1;
+                    q.push(ni);
+                }
+            }
+            reachCache = { key, set: { seen, w } };
+            return reachCache.set;
+        }
+
+        function gateReachable(g, reach) {
+            if (!reach) return true;
+            const { seen, w } = reach;
+            const at = (x, y) => (x >= 0 && y >= 0 && x < w ? seen[x + y * w] : 0);
+            return at(g.x, g.y) > 0;
+        }
+
         function getGateways() {
             const h = heroPos();
             return gws.map((g) => {
@@ -7898,11 +8403,14 @@ function observeChatLinks() {
             }
             list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
             // podpis bez pozycji – przy samym ruchu nie przebudowujemy listy (inaczej przycisk pod kursorem mruga)
-            const gates = getGateways();
+            const allGates = getGateways();
+            const reach = state.mmGwAvail ? reachableSet() : null;
+            const gates = reach ? allGates.filter((g) => gateReachable(g, reach)) : allGates;
+            const availNoData = state.mmGwAvail && !reach;
             sideData = { list, players, gates };
             const sig = list.map((o) => `${o.kind}${o.nick}${o.lvl}`).join('|') + '#' +
                 players.map((p) => `${p.id}:${p.nick}:${p.clan}`).join('|') + '#' + (chase ? chase.id : '') + '#' + state.mmChaseAttack +
-                '#' + gates.map((g) => `${g.id}:${g.nick}`).join('|') + '#' + (gwWalk ? `${gwWalk.x},${gwWalk.y}` : '');
+                '#' + gates.map((g) => `${g.id}:${g.nick}`).join('|') + '#' + allGates.length + '#' + state.mmGwAvail + availNoData + '#' + (gwWalk ? `${gwWalk.x},${gwWalk.y}` : '');
             if (sig === sideSig) {
                 updateSidePositions(side, list, players, gates);
                 refreshSideTip();
@@ -7910,7 +8418,7 @@ function observeChatLinks() {
             }
             sideSig = sig;
             hideSideTip();
-            side.classList.toggle('pa-visible', list.length > 0 || players.length > 0 || gates.length > 0);
+            side.classList.toggle('pa-visible', list.length > 0 || players.length > 0 || allGates.length > 0);
             const rowsCount = list.length + players.length + gates.length;
             side.classList.toggle('pa-mm-dense', rowsCount > 8);
             side.classList.toggle('pa-mm-xdense', rowsCount > 16);
@@ -7924,7 +8432,9 @@ function observeChatLinks() {
                 <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" data-mm-tip-text="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : 'Goń'}</button>
               </div>`;
             }).join('') : '';
-            const gatesHtml = gates.length ? `<div class="pa-mm-side-title">Przejścia (${gates.length})</div>` + gates.map((g, gi) => {
+            const availTip = availNoData ? 'Brak danych o kolizjach tej mapy – pokazuję wszystkie przejścia' : 'Pokaż tylko przejścia, do których da się dojść bez zmiany mapy';
+            const gatesTitle = `<div class="pa-mm-side-title pa-mm-title-row"><span>Przejścia (${reach ? `${gates.length}/${allGates.length}` : allGates.length})</span><label class="pa-mm-avail${state.mmGwAvail ? ' pa-on' : ''}${availNoData ? ' pa-nodata' : ''}" data-mm-tip-text="${availTip}"><input type="checkbox" data-mm-avail${state.mmGwAvail ? ' checked' : ''}>Dostępne</label></div>`;
+            const gatesHtml = !allGates.length ? '' : gatesTitle + (gates.length ? '' : '<div class="pa-mm-empty">Brak dostępnych przejść</div>') + (gates.length ? gates.map((g, gi) => {
                 const on = gwWalk && gwWalk.x === g.x && gwWalk.y === g.y;
                 return `
               <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${g.x},${g.y}" data-mm-dist="${Math.round(g.dist)}" data-mm-tip="g:${gi}">
@@ -7932,7 +8442,7 @@ function observeChatLinks() {
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(g.nick)}</b><small><span data-mm-dist>${Math.round(g.dist)} kr.</span><span class="pa-mm-xy"> · (${g.x},${g.y})</span></small></span>
                 <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-gw="${g.x},${g.y}" data-mm-gw-name="${escapeHtmlPa(g.nick)}" data-mm-tip-text="Dojdź do przejścia i przejdź na następną mapę">${on ? 'Stop' : 'Przejdź'}</button>
               </div>`;
-            }).join('') : '';
+            }).join('') : '');
             side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o, oi) => `
               <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" data-mm-kind="${o.kind}" data-mm-nick="${escapeHtmlPa(o.nick)}" data-mm-tip="o:${oi}">
                 <span class="pa-mm-row-dot" style="background:${COLORS[o.kind]}"></span>
@@ -8237,6 +8747,7 @@ function observeChatLinks() {
             lootChance.init();
             upgradeCosts.init();
             lootTime.init();
+            activities.init();
             syncUi(root);
 
             // motyw gry ładuje się chwilę po starcie – dopasuj kolor jeszcze raz
