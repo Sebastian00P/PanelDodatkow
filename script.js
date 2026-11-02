@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9.4';
+    const PANEL_VERSION = '5.9.5';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -2735,7 +2735,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
     // ------------------------------------------------------------------
     const activities = (function () {
         const CACHE_KEY = 'pa_activities_cache_v1';
-        const FRESH_MS = 3 * 60 * 1000;
+        const FRESH_MS = 90 * 1000;
         let chars = null;
         let charsAt = 0;
         let charsLoading = null;
@@ -2746,6 +2746,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         let tip = null;
         let tipFor = null;
         let renderQueued = false;
+        let heroRefreshT = null;
 
         try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') || {}; } catch (_) { cache = {}; }
         const saveCache = () => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (_) {} };
@@ -2806,7 +2807,8 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     if (!val || !val.show) return false;
                     if (val.show.targetId !== undefined && String(val.show.targetId) !== String(id)) return false;
                     finish(val.show);
-                    return true;           // gra nie dostaje tej odpowiedzi – nie otwiera okna
+                    delete val.show;       // gra nie dostaje tej odpowiedzi – nie otwiera okna
+                    return true;
                 });
                 if (!net.send(`activities&action=show&targetId=${id}`)) finish(null);
                 setTimeout(() => { off(); finish(null); }, 6000);
@@ -3011,12 +3013,22 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         function init() {
             // zmiana stanu aktywności na bieżącej postaci – dane do odświeżenia
             net.on('activities', (val) => {
-                if (val && !val.show) {
+                if (val && !val.show && state.acEnabled) {
                     const id = net.heroId();
                     if (cache[id]) cache[id].at = 0;
+                    clearTimeout(heroRefreshT);
+                    heroRefreshT = setTimeout(() => {
+                        if (!queue.some((q) => String(q.id) === id)) queue.push({ id, nick: cache[id]?.nick });
+                        pump();
+                    }, 1500);
                 }
             });
-            if (state.acEnabled) enable();
+            // w tle co 2 min – badge są aktualne od razu po otwarciu okna
+            setInterval(() => { if (state.acEnabled) refresh(); }, 2 * 60 * 1000);
+            if (state.acEnabled) {
+                enable();
+                setTimeout(() => refresh(), 8000);
+            }
         }
 
         return {
@@ -5625,12 +5637,15 @@ function observeChatLinks() {
                     if (consumed) {
                         list.splice(i, 1);
                         changed = true;
+                        // handler sam usuwa to, czego gra ma nie dostać; pusty klucz wyrzucamy w całości
+                        const v = obj[k];
+                        if (v && typeof v === 'object' && !Object.keys(v).length) delete obj[k];
                         break;
                     }
                 }
             }
             if (!changed) return data;
-            return isStr ? JSON.stringify(obj) : obj;
+            return isStr ? JSON.stringify(obj) : data;
         }
 
         function tryHook() {
