@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '5.9';
+    const PANEL_VERSION = '5.9.1';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1036,6 +1036,29 @@ div[data-chat-message-id] a {
       background: rgba(255,255,255,.02);
     }
     .pa-mm-side.pa-visible { display: flex; }
+    .pa-mm-stip {
+      max-width: 280px; min-width: 190px; padding: 0; overflow: hidden;
+      border-radius: 10px; font: 11.5px/1.35 var(--pa-font);
+      box-shadow: 0 12px 32px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04) inset;
+      opacity: 0; transform: translateX(-4px); transition: opacity .08s ease, transform .08s ease;
+    }
+    .pa-mm-stip.pa-show { opacity: 1; transform: none; }
+    .pa-mm-stip.pa-left { transform: translateX(4px); }
+    .pa-mm-stip.pa-left.pa-show { transform: none; }
+    .pa-st-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 7px; border-left: 3px solid var(--st-c, var(--pa-accent)); background: linear-gradient(90deg, color-mix(in srgb, var(--st-c, var(--pa-accent)) 18%, transparent), transparent 85%); }
+    .pa-st-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--st-c); box-shadow: 0 0 0 1px #000, 0 0 8px var(--st-c); }
+    .pa-st-name { font-weight: 700; font-size: 12.5px; color: var(--pa-text); word-break: break-word; }
+    .pa-st-tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px 0; }
+    .pa-st-tag { font: 700 9.5px/1 var(--pa-font); letter-spacing: .4px; text-transform: uppercase; padding: 3px 6px; border-radius: 5px; background: var(--pa-surface-2, rgba(255,255,255,.06)); color: var(--pa-muted); border: 1px solid var(--pa-border); }
+    .pa-st-tag.pa-st-bad { color: #ff6b75; border-color: rgba(255,77,90,.45); background: rgba(255,77,90,.12); }
+    .pa-st-tag.pa-st-good { color: #7dff8a; border-color: rgba(8,173,0,.45); background: rgba(8,173,0,.12); }
+    .pa-st-tag.pa-st-acc { color: var(--pa-accent); border-color: color-mix(in srgb, var(--pa-accent) 45%, transparent); }
+    .pa-st-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; padding: 7px 10px 8px; }
+    .pa-st-grid span { color: var(--pa-muted); }
+    .pa-st-grid b { text-align: right; font-variant-numeric: tabular-nums; color: var(--pa-text); }
+    .pa-st-hint { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px 8px; border-top: 1px solid var(--pa-border); color: var(--pa-muted); font-size: 10.5px; }
+    .pa-st-hint kbd { display: inline-block; min-width: 26px; text-align: center; margin-right: 6px; padding: 1px 4px; border-radius: 4px; font: 700 9.5px/1.3 var(--pa-font); color: var(--pa-text); background: rgba(255,255,255,.07); border: 1px solid var(--pa-border-strong); border-bottom-width: 2px; }
+    .pa-st-simple { padding: 6px 10px; }
     .pa-mm-side-title { font: 700 10.5px var(--pa-font); letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); padding: 0 2px 6px; border-bottom: 1px solid var(--pa-border); margin-bottom: 2px; }
     .pa-mm-row {
       display: flex;
@@ -6910,6 +6933,14 @@ function observeChatLinks() {
                 buildMap();
                 syncUi();
             }));
+            const sideEl = el.querySelector('[data-mm-side]');
+            sideEl.addEventListener('mouseover', (e) => {
+                const t = e.target.closest('[data-mm-tip-text], [data-mm-tip]');
+                if (!t || !sideEl.contains(t)) return hideSideTip();
+                if (t !== sideTipEl) showSideTip(t);
+            });
+            sideEl.addEventListener('mouseleave', hideSideTip);
+            sideEl.addEventListener('scroll', hideSideTip, { passive: true });
             el.querySelector('[data-mm-side]').addEventListener('contextmenu', (e) => {
                 const row = e.target.closest('[data-mm-kind]');
                 if (!row || !ALERT_WORD[row.getAttribute('data-mm-kind')]) return;
@@ -7250,6 +7281,10 @@ function observeChatLinks() {
         const IMPORTANT = { titan: 1, collosus: 2, herosEvent: 3, heros: 4, elite3: 5, elite2: 6 };
         const PULSE = { titan: 1, collosus: 1, heros: 1, herosEvent: 1, elite3: 1 };
         let sideSig = null;
+        let lastSideHeroTile = '';
+        let sideData = { list: [], players: [], gates: [] };
+        let sideTip = null;
+        let sideTipEl = null;
 
         function approach(x, y) {
             const h = heroPos();
@@ -7491,7 +7526,6 @@ function observeChatLinks() {
                 if (row.getAttribute('data-mm-row') === pos && row.dataset.mmDist === dist) return;
                 row.setAttribute('data-mm-row', pos);
                 row.dataset.mmDist = dist;
-                row.title = sidePlayerTitle(p);
                 const d = row.querySelector('[data-mm-dist]');
                 if (d) d.textContent = `${dist} kr.`;
                 const xy = row.querySelector('.pa-mm-xy');
@@ -7505,6 +7539,102 @@ function observeChatLinks() {
                 const d = row.querySelector('[data-mm-dist]');
                 if (d) d.textContent = `${dist} kr.`;
             });
+        }
+
+        // ---------- natychmiastowe, ładne tipy w panelu bocznym ----------
+        const PROF_FULL = { w: 'Wojownik', p: 'Paladyn', b: 'Tancerz ostrzy', m: 'Mag', t: 'Tropiciel', h: 'Łowca' };
+        const REL_TAG = {
+            enemy: ['Wróg', 'pa-st-bad'], friend: ['Przyjaciel', 'pa-st-good'], clan: ['Klan', 'pa-st-good'],
+            ally: ['Sojusznik', 'pa-st-good'], other: ['Neutralny', ''],
+        };
+        const kbd = (k, t) => `<div><kbd>${k}</kbd>${t}</div>`;
+        const distTxt = (d) => {
+            const n = Math.round(d);
+            if (!(n < 999)) return '?';
+            return `${n} ${n === 1 ? 'kratka' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? 'kratki' : 'kratek'}`;
+        };
+
+        function sideTipHtml(key) {
+            const [t, idx] = key.split(':');
+            const e = escapeHtmlPa;
+            if (t === 'g') {
+                const g = sideData.gates[Number(idx)];
+                if (!g) return '';
+                const on = gwWalk && gwWalk.x === g.x && gwWalk.y === g.y;
+                return `<div class="pa-st-head" style="--st-c:${COLORS.gw}"><span class="pa-st-dot"></span><span class="pa-st-name">${e(g.nick)}</span></div>
+                  <div class="pa-st-tags"><span class="pa-st-tag">Przejście</span>${on ? '<span class="pa-st-tag pa-st-acc">Idziesz tutaj</span>' : ''}</div>
+                  <div class="pa-st-grid"><span>Odległość</span><b>${distTxt(g.dist)}</b><span>Pozycja</span><b>${g.x}, ${g.y}</b></div>
+                  <div class="pa-st-hint">${kbd('LPM', 'zaznacz na mapie')}${kbd('Przejdź', on ? 'zatrzymaj drogę' : 'dojdź i przejdź dalej')}</div>`;
+            }
+            if (t === 'p') {
+                const p = sideData.players[Number(idx)];
+                if (!p) return '';
+                const on = chase && chase.id === p.id;
+                const rel = REL_TAG[p.kind] || ['', ''];
+                const c = COLORS[p.kind] || COLORS.other;
+                return `<div class="pa-st-head" style="--st-c:${c}"><span class="pa-st-dot"></span><span class="pa-st-name">${e(p.nick)}</span></div>
+                  <div class="pa-st-tags">${rel[0] ? `<span class="pa-st-tag ${rel[1]}">${rel[0]}</span>` : ''}${on ? '<span class="pa-st-tag pa-st-acc">Gonisz</span>' : ''}</div>
+                  <div class="pa-st-grid">${p.lvl ? `<span>Poziom</span><b>${p.lvl}</b>` : ''}${p.prof ? `<span>Profesja</span><b>${PROF_FULL[p.prof] || e(p.prof)}</b>` : ''}<span>Klan</span><b>${p.clan ? e(p.clan) : '—'}</b><span>Odległość</span><b>${distTxt(p.dist)}</b><span>Pozycja</span><b>${p.x}, ${p.y}</b></div>
+                  <div class="pa-st-hint">${kbd('LPM', 'zaznacz na mapie')}${kbd('Goń', on ? 'zatrzymaj pościg' : (state.mmChaseAttack ? 'biegnij i zaatakuj' : 'biegnij za graczem'))}</div>`;
+            }
+            if (t === 'o') {
+                const o = sideData.list[Number(idx)];
+                if (!o) return '';
+                const h = heroPos();
+                const d = h ? Math.hypot(o.x - h.x, o.y - h.y) : 999;
+                return `<div class="pa-st-head" style="--st-c:${COLORS[o.kind] || '#fff'}"><span class="pa-st-dot"></span><span class="pa-st-name">${e(o.nick)}</span></div>
+                  <div class="pa-st-tags"><span class="pa-st-tag pa-st-acc">${e(TYPE_NAMES[o.kind] || o.kind)}</span>${o.grp ? '<span class="pa-st-tag">Grupa</span>' : ''}</div>
+                  <div class="pa-st-grid">${o.lvl ? `<span>Poziom</span><b>${o.lvl}</b>` : ''}<span>Odległość</span><b>${distTxt(d)}</b><span>Pozycja</span><b>${o.x}, ${o.y}</b></div>
+                  <div class="pa-st-hint">${kbd('LPM', 'zaznacz na mapie')}${kbd('Podejdź', 'idź do celu')}${ALERT_WORD[o.kind] ? kbd('PPM', 'skopiuj komunikat') : ''}</div>`;
+            }
+            return '';
+        }
+
+        function placeSideTip() {
+            if (!sideTip || !sideTipEl || !sideTipEl.isConnected) return hideSideTip();
+            const r = sideTipEl.getBoundingClientRect();
+            const w = sideTip.offsetWidth;
+            const hgt = sideTip.offsetHeight;
+            let left = r.right + 10;
+            const flip = left + w > window.innerWidth - 6;
+            if (flip) left = r.left - w - 10;
+            sideTip.classList.toggle('pa-left', flip);
+            const top = Math.max(6, Math.min(window.innerHeight - hgt - 6, r.top + r.height / 2 - hgt / 2));
+            sideTip.style.left = `${Math.max(6, left)}px`;
+            sideTip.style.top = `${top}px`;
+        }
+
+        function showSideTip(target) {
+            if (!sideTip) {
+                sideTip = document.createElement('div');
+                sideTip.className = 'pa-tip pa-mm-stip';
+                document.body.appendChild(sideTip);
+            }
+            const html = target.hasAttribute('data-mm-tip-text')
+                ? `<div class="pa-st-simple">${escapeHtmlPa(target.getAttribute('data-mm-tip-text'))}</div>`
+                : sideTipHtml(target.getAttribute('data-mm-tip'));
+            if (!html) return hideSideTip();
+            const fresh = sideTipEl !== target;
+            sideTipEl = target;
+            sideTip.innerHTML = html;
+            sideTip.style.display = 'block';
+            placeSideTip();
+            if (fresh) {
+                sideTip.classList.remove('pa-show');
+                void sideTip.offsetWidth;
+            }
+            sideTip.classList.add('pa-show');
+        }
+
+        function hideSideTip() {
+            sideTipEl = null;
+            if (!sideTip) return;
+            sideTip.classList.remove('pa-show');
+            sideTip.style.display = 'none';
+        }
+
+        function refreshSideTip() {
+            if (sideTipEl && sideTipEl.isConnected && sideTip && sideTip.style.display !== 'none') showSideTip(sideTipEl);
         }
 
         function renderSide() {
@@ -7521,42 +7651,45 @@ function observeChatLinks() {
             list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
             // podpis bez pozycji – przy samym ruchu nie przebudowujemy listy (inaczej przycisk pod kursorem mruga)
             const gates = getGateways();
+            sideData = { list, players, gates };
             const sig = list.map((o) => `${o.kind}${o.nick}${o.lvl}`).join('|') + '#' +
                 players.map((p) => `${p.id}:${p.nick}:${p.clan}`).join('|') + '#' + (chase ? chase.id : '') + '#' + state.mmChaseAttack +
                 '#' + gates.map((g) => `${g.id}:${g.nick}`).join('|') + '#' + (gwWalk ? `${gwWalk.x},${gwWalk.y}` : '');
             if (sig === sideSig) {
                 updateSidePositions(side, list, players, gates);
+                refreshSideTip();
                 return;
             }
             sideSig = sig;
+            hideSideTip();
             side.classList.toggle('pa-visible', list.length > 0 || players.length > 0 || gates.length > 0);
             const rowsCount = list.length + players.length + gates.length;
             side.classList.toggle('pa-mm-dense', rowsCount > 8);
             side.classList.toggle('pa-mm-xdense', rowsCount > 16);
             side.style.height = `${el.querySelector('.pa-mm-col').offsetHeight}px`;
-            const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p) => {
+            const playersHtml = players.length ? `<div class="pa-mm-side-title">Gracze w pobliżu (${players.length})</div>` + players.map((p, pi) => {
                 const on = chase && chase.id === p.id;
                 return `
-              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" title="${escapeHtmlPa(p.nick)}${p.lvl ? ` (${p.lvl}${p.prof})` : ''} · ${p.kind === 'enemy' ? 'wróg · ' : ''}${p.clan ? escapeHtmlPa(p.clan) : 'bez klanu'} · ${Math.round(p.dist)} kratek · (${p.x},${p.y})&#10;Kliknij, aby zaznaczyć na mapie">
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${p.x},${p.y}" data-mm-dist="${Math.round(p.dist)}" data-mm-tip="p:${pi}">
                 <span class="pa-mm-row-dot" style="background:${COLORS[p.kind]}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(p.nick)}${p.lvl ? ` <em>${p.lvl}${p.prof}</em>` : ''}</b><small><span class="pa-mm-kind">${p.kind === 'enemy' ? 'wróg · ' : ''}${p.clan ? escapeHtmlPa(p.clan) : 'bez klanu'} · </span><span data-mm-dist>${Math.round(p.dist)} kr.</span><span class="pa-mm-xy"> · (${p.x},${p.y})</span></small></span>
-                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" title="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : 'Goń'}</button>
+                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-chase="${p.id}" data-mm-tip-text="${state.mmChaseAttack ? 'Biegnij za graczem i zaatakuj go' : 'Biegnij za graczem'}">${on ? 'Stop' : 'Goń'}</button>
               </div>`;
             }).join('') : '';
-            const gatesHtml = gates.length ? `<div class="pa-mm-side-title">Przejścia (${gates.length})</div>` + gates.map((g) => {
+            const gatesHtml = gates.length ? `<div class="pa-mm-side-title">Przejścia (${gates.length})</div>` + gates.map((g, gi) => {
                 const on = gwWalk && gwWalk.x === g.x && gwWalk.y === g.y;
                 return `
-              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${g.x},${g.y}" data-mm-dist="${Math.round(g.dist)}" title="${escapeHtmlPa(g.nick)} · ${Math.round(g.dist)} kratek · (${g.x},${g.y})&#10;Kliknij, aby zaznaczyć na mapie">
+              <div class="pa-mm-row${on ? ' pa-mm-chasing' : ''}" data-mm-row="${g.x},${g.y}" data-mm-dist="${Math.round(g.dist)}" data-mm-tip="g:${gi}">
                 <span class="pa-mm-row-dot" style="background:${COLORS.gw}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(g.nick)}</b><small><span data-mm-dist>${Math.round(g.dist)} kr.</span><span class="pa-mm-xy"> · (${g.x},${g.y})</span></small></span>
-                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-gw="${g.x},${g.y}" data-mm-gw-name="${escapeHtmlPa(g.nick)}" title="Dojdź do przejścia i przejdź na następną mapę">${on ? 'Stop' : 'Przejdź'}</button>
+                <button type="button" class="pa-mm-go${on ? ' pa-mm-stop' : ''}" data-mm-gw="${g.x},${g.y}" data-mm-gw-name="${escapeHtmlPa(g.nick)}" data-mm-tip-text="Dojdź do przejścia i przejdź na następną mapę">${on ? 'Stop' : 'Przejdź'}</button>
               </div>`;
             }).join('') : '';
-            side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o) => `
-              <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" data-mm-kind="${o.kind}" data-mm-nick="${escapeHtmlPa(o.nick)}" title="Kliknij, aby zaznaczyć na mapie${ALERT_WORD[o.kind] ? '&#10;PPM – skopiuj komunikat do schowka' : ''}">
+            side.innerHTML = (list.length ? `<div class="pa-mm-side-title">Wykryte (${list.length})</div>` : '') + list.map((o, oi) => `
+              <div class="pa-mm-row" data-mm-row="${o.x},${o.y}" data-mm-kind="${o.kind}" data-mm-nick="${escapeHtmlPa(o.nick)}" data-mm-tip="o:${oi}">
                 <span class="pa-mm-row-dot" style="background:${COLORS[o.kind]}"></span>
                 <span class="pa-mm-row-text"><b>${escapeHtmlPa(o.nick)}</b><small>${TYPE_NAMES[o.kind]}${o.lvl ? ` · ${o.lvl} lvl` : ''}${o.grp ? ' · grp' : ''} · (${o.x},${o.y})</small></span>
-                <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}">Podejdź</button>
+                <button type="button" class="pa-mm-go" data-mm-approach="${o.x},${o.y}" data-mm-tip-text="Podejdź do celu">Podejdź</button>
               </div>`).join('') + playersHtml + gatesHtml;
         }
 
@@ -7674,6 +7807,12 @@ function observeChatLinks() {
             }
             highlightNearSpawns(Math.round(h.x ?? h.rx), Math.round(h.y ?? h.ry));
             if (!hoverTile) updateCoords();
+            // postać zmieniła kratkę – odśwież odległości w panelu bocznym
+            const heroTile = `${h.x},${h.y}`;
+            if (heroTile !== lastSideHeroTile) {
+                lastSideHeroTile = heroTile;
+                renderSide();
+            }
         }
 
         // ---------- okno mapy podręcznej z gry ----------
@@ -7743,6 +7882,7 @@ function observeChatLinks() {
             cancelAnimationFrame(tickTimer);
             if (el) el.classList.remove('pa-visible');
             if (tip) tip.style.display = 'none';
+            hideSideTip();
             if (alsoGame) closeGameWindow();
         }
 
