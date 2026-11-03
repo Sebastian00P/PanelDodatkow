@@ -7747,9 +7747,57 @@ function observeChatLinks() {
         }
 
         // gdy panel włączono po starcie gry – próbujemy pobrać stan z silnika
+        // przejścia z silnika gry – gdy po F5 pakiet z przejściami (gw2) przyszedł, zanim panel się podłączył
+        function gatewaysFromEngine() {
+            const E = PAGE.Engine;
+            if (!E) return [];
+            const out = [];
+            const strip = (t) => String(t || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            const sources = [E.map?.gateways, E.gateways, E.map?.gw, E.map?.gws];
+            for (const src of sources) {
+                if (!src) continue;
+                let list = null;
+                try {
+                    list = (typeof src.getList === 'function' && src.getList()) ||
+                        (typeof src.getAll === 'function' && src.getAll()) ||
+                        (typeof src.check === 'function' && src.check()) ||
+                        src.list || src.gateways || src.gws || src.d || src;
+                } catch (_) { list = null; }
+                if (!list || typeof list !== 'object') continue;
+                for (const key of Object.keys(list)) {
+                    const g = list[key];
+                    if (!g || typeof g !== 'object') continue;
+                    const d = g.d && typeof g.d === 'object' ? g.d : g;
+                    const x = Number(d.x ?? g.rx ?? g.x);
+                    const y = Number(d.y ?? g.ry ?? g.y);
+                    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+                    const name = strip(d.townname || d.name || g.name || g.townname ||
+                        (typeof g.tip === 'string' ? g.tip : '') || (typeof d.tip === 'string' ? d.tip : '')) || 'Przejście';
+                    out.push({ id: `gw-e-${key}`, x, y, nick: name, kind: 'gw' });
+                }
+                if (out.length) break;
+            }
+            return out;
+        }
+
+        // podgląd w konsoli: paGw() – co panel widzi jako przejścia
+        PAGE.paGw = () => ({ fromPackets: gws.length, fromEngine: gatewaysFromEngine(), engineMapKeys: Object.keys(PAGE.Engine?.map || {}) });
+
+        let lastGwBootstrap = 0;
+        function ensureGateways() {
+            if (gws.length || Date.now() - lastGwBootstrap < 2000) return;
+            lastGwBootstrap = Date.now();
+            const list = gatewaysFromEngine();
+            if (list.length) {
+                gws = mergeGateways(list);
+                sideSig = null;
+            }
+        }
+
         function bootstrapFromEngine() {
             const E = PAGE.Engine;
             if (!E) return;
+            try { ensureGateways(); } catch (_) {}
             try {
                 const d = E.map?.d;
                 if (d && (!town || !town.w)) {
@@ -8881,6 +8929,7 @@ function observeChatLinks() {
             }
             list.sort((a, b) => IMPORTANT[a.kind] - IMPORTANT[b.kind] || (b.lvl || 0) - (a.lvl || 0));
             // podpis bez pozycji – przy samym ruchu nie przebudowujemy listy (inaczej przycisk pod kursorem mruga)
+            try { ensureGateways(); } catch (_) {}
             const allGates = getGateways();
             const reach = state.mmGwAvail ? reachableSet() : null;
             const gates = reach ? allGates.filter((g) => gateReachable(g, reach)) : allGates;
