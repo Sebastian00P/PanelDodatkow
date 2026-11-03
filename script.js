@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.4';
+    const PANEL_VERSION = '6.0.5';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -8577,12 +8577,16 @@ function observeChatLinks() {
             if (!isCol) return null;
             const sx = Math.round(Number(h.x));
             const sy = Math.round(Number(h.y));
+            // w trakcie ładowania / teleportu pozycja bywa pusta (NaN) albo z poprzedniej mapy –
+            // wtedy BFS kręciłby się w nieskończoność i zawieszał przeglądarkę
+            if (!Number.isInteger(sx) || !Number.isInteger(sy) || sx < 0 || sy < 0 || sx >= w || sy >= hh) return null;
             const key = `${town?.id}|${sx},${sy}|${colStr.length}`;
             if (reachCache.key === key) return reachCache.set;
             const seen = new Uint8Array(w * hh);
             const q = [sx + sy * w];
             seen[q[0]] = 1;
-            for (let qi = 0; qi < q.length; qi++) {
+            const limit = w * hh;
+            for (let qi = 0; qi < q.length && qi <= limit; qi++) {
                 const i = q[qi];
                 const x = i % w;
                 const y = (i - x) / w;
