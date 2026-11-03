@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.3';
+    const PANEL_VERSION = '6.0.4';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -5947,7 +5947,63 @@ function observeChatLinks() {
             return false;
         }
 
+        // przelogowanie / wylogowanie w toku (gra odlicza ~5 s; każde inne zapytanie je przerywa)
+        // po udanym przelogowaniu gra i tak się przeładowuje – blokada liczy się tylko przy anulowaniu,
+        // więc trzymamy ją do skutku, ale zdejmujemy od razu, gdy postać się ruszy (ruch przerywa przelogowanie)
+        let relogUntil = 0;
+        let relogPos = '';
+        function heroTile() {
+            try {
+                const h = PAGE.Engine?.hero?.d || PAGE.hero;
+                return h ? `${h.x},${h.y}` : '';
+            } catch (_) {
+                return '';
+            }
+        }
+        function markRelog(on) {
+            relogUntil = on ? Date.now() + 10000 : 0;
+            relogPos = on ? heroTile() : '';
+        }
+        function isRelogging() {
+            if (Date.now() >= relogUntil) return false;
+            const pos = heroTile();
+            if (relogPos && pos && pos !== relogPos) {
+                relogUntil = 0;
+                return false;
+            }
+            return true;
+        }
+        let gHooked = false;
+        function hookRelog() {
+            if (!gHooked && typeof PAGE._g === 'function') {
+                const orig = PAGE._g;
+                PAGE._g = function (q) {
+                    try {
+                        const str = String(q || '');
+                        if (/^logoff/.test(str)) markRelog(!/a=(stop|cancel)/.test(str));
+                    } catch (_) {}
+                    return orig.apply(this, arguments);
+                };
+                gHooked = true;
+            }
+            const cp = PAGE.Engine?.changePlayer;
+            if (cp && !cp.__paRelog) {
+                cp.__paRelog = true;
+                ['changePlayerRequest', 'logout'].forEach((fn) => {
+                    if (typeof cp[fn] !== 'function') return;
+                    const o = cp[fn];
+                    cp[fn] = function () {
+                        markRelog(true);
+                        return o.apply(this, arguments);
+                    };
+                });
+            }
+            return gHooked && Boolean(cp);
+        }
+
         function start() {
+            const rv = setInterval(() => { if (hookRelog()) clearInterval(rv); }, 500);
+            setTimeout(() => clearInterval(rv), 180000);
             if (tryHook()) return;
             const iv = setInterval(() => { if (tryHook()) clearInterval(iv); }, 25);
             setTimeout(() => clearInterval(iv), 180000);
@@ -5979,7 +6035,7 @@ function observeChatLinks() {
             }
         }
 
-        return { on, onAny, intercept, start, send, heroId, heroLvl, isHooked: () => hooked };
+        return { on, onAny, intercept, start, send, heroId, heroLvl, isRelogging, isHooked: () => hooked };
     })();
 
     function escapeHtmlPa(v) {
@@ -6603,6 +6659,7 @@ function observeChatLinks() {
                 return;
             }
             if (isFighting()) return;
+            if (net.isRelogging()) return;
             if (pendingAttempts >= 4) return; // czekamy na zamknięcie walki
             if (Date.now() - lastPendingSendAt < 1500) return;
             pendingAttempts++;
@@ -6622,6 +6679,7 @@ function observeChatLinks() {
 
         function choose(id, fromAI = false) {
             id = Number(id);
+            if (fromAI && net.isRelogging()) return;   // automat nie może przerwać przelogowania
             if (!fromAI) disableAI('AI zestawów wyłączone – wybrałeś zestaw ręcznie');
             if (pendingId === id) {
                 pendingId = null;
@@ -6955,6 +7013,13 @@ function observeChatLinks() {
         }
 
         function aiStep() {
+            if (net.isRelogging()) {
+                if (win) {
+                    aiInfo = '🔄 Przelogowanie – zmiany zestawów wstrzymane';
+                    renderStatus();
+                }
+                return;
+            }
             kolosStep();
             if (kolos) {
                 // przy kolosie AI nie przełącza zestawów
