@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.2';
+    const PANEL_VERSION = '6.0.3';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -1024,6 +1024,8 @@ div[data-chat-message-id] a {
     }
     .pa-chip:hover { border-color: var(--pa-border-strong); color: #fff; }
     .pa-chip.pa-on { background: color-mix(in srgb, var(--pa-accent) 75%, #000); border-color: var(--pa-accent); color: #fff; }
+    .pa-chip.pa-chip-kolos { margin-left: 4px; border-style: dashed; }
+    .pa-chip.pa-chip-kolos.pa-on { background: linear-gradient(180deg, #8fa31c, #5d6b0f); border-color: #b6d22a; border-style: solid; color: #fff; }
     .pa-builds-status.pa-warn { color: #f5c451; }
     .pa-builds-empty { padding: 4px 2px; color: var(--pa-muted); font-size: 10.5px; line-height: 1.4; max-width: 200px; }
 
@@ -3484,7 +3486,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmFog"> Mgła wojny – ramka z zasięgiem widzenia postaci</label>
               <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania respu (kratki) – sprawdzony resp zostaje podświetlony</span><input type="number" min="1" max="60" step="1" data-pa-opt-num="mmSpawnRange"></label></div>
-              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#3a3a3a">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#ff3b3b">●</b> wrogowie i obcy gracze · <b style="color:#fff;text-shadow:0 0 2px #000">●</b> groby · <b style="color:#2b3cff">■</b> przejścia</p>
+              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#3a3a3a">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#b45cff">●</b> drużyna · <b style="color:#ff3b3b">●</b> wrogowie i obcy gracze · <b style="color:#fff;text-shadow:0 0 2px #000">●</b> groby · <b style="color:#2b3cff">■</b> przejścia</p>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button><button type="button" class="pa-btn" data-pa-action="mm-reset-pos">Przywróć pozycję mapy</button></div>
               <p class="pa-hint">Mapę przesuwasz, łapiąc za jej górny pasek z nazwą.</p>`,
         },
@@ -4492,6 +4494,14 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 ptTheme.setPreset(ptPreset.getAttribute('data-pa-pt-preset'));
                 if (!state.ptEnabled) showToast('Paleta zapisana – włącz Motyw, żeby ją zobaczyć');
                 syncUi(root);
+                return;
+            }
+
+            const kChip = event.target.closest('[data-pa-bkolos-id]');
+            if (kChip) {
+                event.preventDefault();
+                builds.toggleKolos(kChip.getAttribute('data-pa-bkolos-id'));
+                builds.renderSettings(modal, true);
                 return;
             }
 
@@ -6834,6 +6844,10 @@ function observeChatLinks() {
                 status.classList.toggle('pa-warn', isFighting());
             }
             if (aiOn() && aiInfo) text = text ? `${text}\n${aiInfo}` : aiInfo;
+            else if (kolos) {
+                const k = `🗿 ${kolos.name} – zestaw „${friendlyName(kolosId())}”, po zbiciu wróci poprzedni`;
+                text = text ? `${text}\n${k}` : k;
+            }
             if (status.textContent !== text) {
                 status.textContent = text;
                 layout();
@@ -6888,6 +6902,49 @@ function observeChatLinks() {
             render();
         }
 
+        // zestaw „Kolos” – jeden na postać
+        function kolosId() {
+            const v = heroCfg().kolos;
+            return v === undefined || v === null ? null : Number(v);
+        }
+        function toggleKolos(id) {
+            const cfg = heroCfg();
+            cfg.kolos = kolosId() === Number(id) ? null : Number(id);
+            saveSettings();
+            render();
+        }
+
+        // kolos na mapie → zakładamy zestaw „Kolos” (także w grupie); po zbiciu / wyjściu – wracamy do poprzedniego
+        let kolos = null;            // { prev, name }
+        function kolosStep() {
+            const kid = kolosId();
+            let here = null;
+            try { here = miniMap.hasColossus(); } catch (_) {}
+            if (kid === null) {
+                kolos = null;
+                return;
+            }
+            if (here && !kolos) {
+                kolos = { prev: currentId !== kid ? currentId : (kolos?.prev ?? null), name: here };
+                if (currentId !== kid && pendingId !== kid) {
+                    showToast(`${here} na mapie – zakładam zestaw „${friendlyName(kid)}”`);
+                    choose(kid, true);
+                }
+                renderStatus();
+                return;
+            }
+            if (!here && kolos) {
+                const prev = kolos.prev;
+                const name = kolos.name;
+                kolos = null;
+                if (prev !== null && prev !== undefined && prev !== kid && currentId === kid) {
+                    showToast(`${name} pokonany – wracam do zestawu „${friendlyName(prev)}”`);
+                    choose(prev, true);
+                }
+                renderStatus();
+            }
+        }
+
         function buildForProf(prof) {
             const map = heroCfg().prof;
             const ids = Object.keys(map).filter((id) => profsOf(id).includes(prof)).map(Number).sort((a, b) => a - b);
@@ -6898,6 +6955,15 @@ function observeChatLinks() {
         }
 
         function aiStep() {
+            kolosStep();
+            if (kolos) {
+                // przy kolosie AI nie przełącza zestawów
+                if (aiOn()) {
+                    aiInfo = `🗿 ${kolos.name} – zestaw „${friendlyName(kolosId())}”`;
+                    renderStatus();
+                }
+                return;
+            }
             if (!win || !aiOn()) {
                 if (aiInfo) {
                     aiInfo = '';
@@ -6967,6 +7033,7 @@ function observeChatLinks() {
                 <span class="pa-bprof-name">${id}. ${escapeHtmlPa(friendlyName(id))}</span>
                 <span class="pa-bprof-chips">
                   ${Object.entries(PROFS).map(([k, v]) => `<button type="button" class="pa-chip${profs.includes(k) ? ' pa-on' : ''}" data-pa-bprof-id="${id}" data-pa-bprof-p="${k}" title="${v}">${PROF_SHORT[k]}</button>`).join('')}
+                  <button type="button" class="pa-chip pa-chip-kolos${kolosId() === id ? ' pa-on' : ''}" data-pa-bkolos-id="${id}" title="Zakładany automatycznie, gdy na mapie stoi kolos (także w grupie). Po zbiciu kolosa wraca poprzedni zestaw.">Kolos</button>
                 </span>
               </div>`;
             }).join('');
@@ -7001,7 +7068,7 @@ function observeChatLinks() {
             if (state.buildsEnabled) setEnabled(true);
         }
 
-        return { init, setEnabled, render, resetPosition, choose, renderSettings, toggleProf, setAI };
+        return { init, setEnabled, render, resetPosition, choose, renderSettings, toggleProf, toggleKolos, setAI };
     })();
 
     // =================================================================
@@ -7300,11 +7367,11 @@ function observeChatLinks() {
             hero: '#ff2a2a', other: '#ff3b3b', grave: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
             npc: '#ddff00', mob: '#3a3a3a', elite: '#00ffe9', elite2: '#039689', elite3: '#ff9f1a',
             heros: '#ffd23f', herosEvent: '#ff4dd2', titan: '#b6ff1a', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
-            resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4',
+            resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4', party: '#b45cff',
         };
         const LAYERS = {
             gw: 70, item: 80, grave: 85, resp: 90, respEvent: 90, npc: 110, mob: 110, elite: 120, elite2: 130, elite3: 130,
-            other: 140, friend: 140, clan: 140, ally: 140, enemy: 145, titan: 150, collosus: 150, heros: 160, herosEvent: 160, marker: 200,
+            other: 140, friend: 140, clan: 140, ally: 140, party: 142, enemy: 145, titan: 150, collosus: 150, heros: 160, herosEvent: 160, marker: 200,
         };
         const TYPE_NAMES = {
             titan: 'tytan', collosus: 'kolos', heros: 'heros', herosEvent: 'heros eventowy', elite3: 'elita III', elite2: 'elita II', elite: 'elita',
@@ -7670,7 +7737,29 @@ function observeChatLinks() {
             return null;
         }
 
+        // członkowie drużyny – z pakietu „party”, awaryjnie z silnika gry
+        const partyIds = new Set();
+        net.on('party', (party) => {
+            if (!party || typeof party !== 'object') return;
+            const members = party.members;
+            if (members && typeof members === 'object') {
+                partyIds.clear();
+                for (const k in members) partyIds.add(String(members[k]?.id ?? k));
+            } else if (!Object.keys(party).length) partyIds.clear();
+        });
+        function inMyParty(id) {
+            if (id === undefined || id === null) return false;
+            if (partyIds.size) return partyIds.has(String(id));
+            try {
+                const m = PAGE.Engine?.party?.getMembers?.();
+                return Boolean(m && (m[id] || Object.values(m).some((x) => String(x?.id ?? x?.d?.id) === String(id))));
+            } catch (_) {
+                return false;
+            }
+        }
+
         function otherKind(o) {
+            if (inMyParty(o.id)) return 'party';
             // gra bywa, że podaje relację tekstem („fr”, „cl”, „en”, „cl-en”…) zamiast liczbą
             const rel = String(o.relation ?? '').toLowerCase();
             if (rel && isNaN(Number(rel))) {
@@ -8600,7 +8689,7 @@ function observeChatLinks() {
         // ---------- natychmiastowe, ładne tipy w panelu bocznym ----------
         const PROF_FULL = { w: 'Wojownik', p: 'Paladyn', b: 'Tancerz ostrzy', m: 'Mag', t: 'Tropiciel', h: 'Łowca' };
         const REL_TAG = {
-            enemy: ['Wróg', 'pa-st-bad'], friend: ['Przyjaciel', 'pa-st-good'], clan: ['Klan', 'pa-st-good'],
+            enemy: ['Wróg', 'pa-st-bad'], friend: ['Przyjaciel', 'pa-st-good'], clan: ['Klan', 'pa-st-good'], party: ['Drużyna', 'pa-st-acc'],
             ally: ['Sojusznik', 'pa-st-good'], other: ['Neutralny', ''],
         };
         const kbd = (k, t) => `<div><kbd>${k}</kbd>${t}</div>`;
@@ -9029,7 +9118,15 @@ function observeChatLinks() {
             } catch (_) {}
         }
 
-        return { init, setEnabled, toggle, refresh, getPlayers, stopChase, resetPosition };
+        function hasColossus() {
+            for (const id in npcs) {
+                const n = npcs[id];
+                if (n && n.x !== undefined && npcKind(n) === 'collosus') return n.nick || 'Kolos';
+            }
+            return null;
+        }
+
+        return { init, setEnabled, toggle, refresh, getPlayers, stopChase, resetPosition, hasColossus };
     })();
 
 
