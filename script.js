@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.5';
+    const PANEL_VERSION = '6.0.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -2933,7 +2933,12 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         // przelogowanie: po kliknięciu postaci w oknie przelogowania nic nie wysyłamy przez 20 s,
         // żeby zapytania o aktywności innych postaci nie wpadły w trakcie zmiany postaci
         let pausedUntil = 0;
-        const isPaused = () => Date.now() < pausedUntil;
+        // nie pytamy też, gdy karta jest w tle (przeglądarka spowalnia timery i odpowiedź przychodzi po czasie)
+        // ani zanim panel podłączy się do komunikacji gry – wtedy odpowiedzi nie dałoby się przechwycić
+        const isPaused = () => Date.now() < pausedUntil || document.hidden || !net.isHooked() || !PAGE.Engine?.hero?.d?.id;
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && state.acEnabled) setTimeout(() => { if (queue.length) pump(); else refresh(); }, 3000);
+        });
         document.addEventListener('mousedown', (e) => {
             if (!e.target.closest?.('.relogger-window .relogger__one-character, .relogger-window [class*="relogger__char"]')) return;
             pausedUntil = Date.now() + 20000;
@@ -3003,8 +3008,20 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     delete val.show;       // gra nie dostaje tej odpowiedzi – nie otwiera okna
                     return true;
                 });
-                if (isPaused() || !net.send(`activities&action=show&targetId=${id}`)) finish(null);
-                setTimeout(() => { off(); finish(null); }, 6000);
+                if (isPaused()) {
+                    off();
+                    finish(null);
+                    return;
+                }
+                if (!net.send(`activities&action=show&targetId=${id}`)) {
+                    off();
+                    finish(null);
+                    return;
+                }
+                // na wynik czekamy 6 s, ale spóźnioną odpowiedź dalej połykamy jeszcze przez minutę,
+                // żeby gra nie otworzyła swojego panelu aktywności
+                setTimeout(() => finish(null), 6000);
+                setTimeout(off, 60000);
             });
         }
 
