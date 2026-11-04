@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.8';
+    const PANEL_VERSION = '6.0.9';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -868,16 +868,25 @@ div[data-chat-message-id] a {
     }
     @keyframes paLcGlowPulse { 0%, 100% { opacity: .75; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
 
-    /* 2. płomienie */
-    .pa-lc-flames { position: absolute; left: 0; top: calc(var(--h) / 2 - 150px); width: 0; height: 170px; filter: blur(6px); animation: paLcFadeIn .3s ease-out; }
-    .pa-lc-flames span {
-      position: absolute; bottom: 0; left: calc(var(--fx) * (var(--w) + 30px) - 26px); width: 52px; height: 130px; border-radius: 50% 50% 40% 40%;
-      background: radial-gradient(ellipse at 50% 85%, #fff3a0 0%, #ffb23c 30%, #ff5a1f 60%, rgba(255,40,0,0) 75%);
-      transform-origin: 50% 100%; scale: var(--fs); animation: paLcFlame 1.2s ease-in-out infinite; opacity: .85;
+    /* 2. płomienie – na całe okno gry */
+    .pa-lc-screen { position: absolute; left: calc(var(--vx, 50vw) * -1); top: calc(var(--vy, 50vh) * -1); width: 100vw; height: 100vh; overflow: hidden; }
+    .pa-lc-fire-screen { animation: paLcFadeIn .6s ease-out both; }
+    .pa-lc-fire-vig {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(255,70,10,.18) 75%, rgba(255,40,0,.38) 100%),
+                  linear-gradient(0deg, rgba(255,90,20,.35), transparent 32%);
+      animation: paLcVig 1.6s ease-in-out infinite;
     }
-    @keyframes paLcFlame { 0%, 100% { transform: scaleY(1) skewX(0deg); } 25% { transform: scaleY(1.15) skewX(4deg); } 50% { transform: scaleY(.9) skewX(-3deg); } 75% { transform: scaleY(1.08) skewX(2deg); } }
-    .pa-lc-ember { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #ffcf5a; box-shadow: 0 0 6px 2px #ff7a1a; opacity: 0; animation: paLcEmber 2.4s linear infinite; }
-    @keyframes paLcEmber { 0% { transform: translate(0,0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(var(--dx, 10px), -150px); opacity: 0; } }
+    @keyframes paLcVig { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
+    .pa-lc-fire-row { position: absolute; left: -4%; right: -4%; bottom: -5vh; height: 32vh; filter: blur(9px); opacity: .7; mix-blend-mode: screen; }
+    .pa-lc-fire-row span {
+      position: absolute; bottom: 0; width: 8vw; height: var(--fh, 100%); margin-left: -4vw; border-radius: 50% 50% 35% 35%;
+      background: radial-gradient(ellipse at 50% 90%, #fff3a0 0%, #ffb23c 25%, #ff5a1f 55%, rgba(255,40,0,0) 72%);
+      transform-origin: 50% 100%; scale: var(--fs); animation: paLcFlame 1.2s ease-in-out infinite;
+    }
+    @keyframes paLcFlame { 0%, 100% { transform: scaleY(1) skewX(0deg); } 25% { transform: scaleY(1.15) skewX(4deg); } 50% { transform: scaleY(.88) skewX(-3deg); } 75% { transform: scaleY(1.08) skewX(2deg); } }
+    .pa-lc-ember { position: absolute; bottom: 4vh; width: 4px; height: 4px; border-radius: 50%; background: #ffcf5a; box-shadow: 0 0 6px 2px #ff7a1a; opacity: 0; animation: paLcEmber 4s linear infinite; }
+    @keyframes paLcEmber { 0% { transform: translate(0,0); opacity: 0; } 10% { opacity: 1; } 80% { opacity: .8; } 100% { transform: translate(var(--dx, 10px), var(--dy, -40vh)); opacity: 0; } }
 
     /* 3. gwiezdny pył */
     .pa-lc-spark {
@@ -904,9 +913,14 @@ div[data-chat-message-id] a {
     @keyframes paLcFlashOnce { 0% { opacity: 1; } 100% { opacity: 0; } }
 
     /* 5. krąg runiczny */
-    .pa-lc-rune { position: absolute; width: calc(var(--s) * 1.35); height: calc(var(--s) * 1.35); left: calc(var(--s) * -.675); top: calc(var(--s) * -.675); animation: paLcSpin 30s linear infinite, paLcFadeIn .4s ease-out; }
-    .pa-lc-rune.pa-lc-rune-rev { width: var(--s); height: var(--s); left: calc(var(--s) * -.5); top: calc(var(--s) * -.5); animation-direction: reverse, normal; animation-duration: 18s, .4s; }
-    .pa-lc-rune svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 6px rgba(255,120,40,.85)); }
+    /* krąg runiczny na całe okno gry: duże, prześwitujące kręgi wyśrodkowane na oknie łupów */
+    .pa-lc-rune { position: absolute; width: 125vmax; height: 125vmax; left: -62.5vmax; top: -62.5vmax; opacity: .38; animation: paLcSpin 60s linear infinite, paLcRuneIn .8s ease-out; }
+    .pa-lc-rune.pa-lc-rune-rev { width: 80vmax; height: 80vmax; left: -40vmax; top: -40vmax; opacity: .5; animation-direction: reverse, normal; animation-duration: 40s, .8s; }
+    .pa-lc-rune.pa-lc-rune-near { width: calc(var(--d) * 1.5); height: calc(var(--d) * 1.5); left: calc(var(--d) * -.75); top: calc(var(--d) * -.75); opacity: .85; animation-duration: 24s, .8s; }
+    @keyframes paLcRuneIn { from { opacity: 0; scale: .85; } }
+    .pa-lc-rune { will-change: transform; }
+    .pa-lc-rune svg { width: 100%; height: 100%; overflow: visible; }
+    .pa-lc-rune.pa-lc-rune-near svg { filter: drop-shadow(0 0 6px rgba(255,120,40,.85)); }
 
     /* 6. błysk i biegnąca ramka */
     .pa-lc-frame {
@@ -2795,11 +2809,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             let inner = null;
             if (fx === 'rays') back.innerHTML = '<div class="pa-lc-rays-spin"></div><div class="pa-lc-rays-glow"></div>';
             if (fx === 'fire') {
-                back.innerHTML = '<div class="pa-lc-flames">' + [[-0.5, 0.95], [-0.27, 1.15], [0, 1.25], [0.27, 1.1], [0.5, 0.9]]
-                    .map(([x, s], i) => `<span style="--fx:${x};--fs:${s};animation-delay:${(i * 0.17).toFixed(2)}s"></span>`).join('') + '</div>';
-                for (let i = 0; i < 14; i++) {
-                    front.insertAdjacentHTML('beforeend', `<i class="pa-lc-ember" style="left:${(Math.random() * 100).toFixed(1)}%;top:${(70 + Math.random() * 30).toFixed(1)}%;--dx:${Math.round(Math.random() * 40 - 20)}px;animation-delay:${(Math.random() * 2.4).toFixed(2)}s"></i>`);
+                // ogień na całe okno gry: płomienie wzdłuż dołu ekranu, żarzące się brzegi i iskry lecące w górę
+                let row = '';
+                const n = 24;
+                for (let i = 0; i < n; i++) {
+                    const x = (i / (n - 1)) * 100 + (Math.random() - 0.5) * 3;
+                    row += `<span style="left:${x.toFixed(1)}%;--fs:${(0.7 + Math.random() * 0.6).toFixed(2)};--fh:${Math.round(45 + Math.random() * 55)}%;animation-delay:${(Math.random() * 1.2).toFixed(2)}s;animation-duration:${(1 + Math.random() * 0.5).toFixed(2)}s"></span>`;
                 }
+                let embers = '';
+                for (let i = 0; i < 34; i++) {
+                    embers += `<i class="pa-lc-ember" style="left:${(Math.random() * 100).toFixed(1)}%;--dx:${Math.round(Math.random() * 80 - 40)}px;--dy:${Math.round(-35 - Math.random() * 55)}vh;animation-delay:${(Math.random() * 4).toFixed(2)}s;animation-duration:${(3 + Math.random() * 2.5).toFixed(2)}s"></i>`;
+                }
+                back.innerHTML = `<div class="pa-lc-screen pa-lc-fire-screen"><div class="pa-lc-fire-vig"></div><div class="pa-lc-fire-row">${row}</div>${embers}</div>`;
             }
             if (fx === 'stars') {
                 [[-8, -10], [104, -12], [-12, 45], [108, 50], [-6, 104], [102, 102], [50, -16], [25, 110], [78, 112]].forEach(([x, y], i) => {
@@ -2810,7 +2831,11 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 back.innerHTML = '<div class="pa-lc-ring"></div><div class="pa-lc-ring" style="animation-delay:.7s"></div><div class="pa-lc-ring" style="animation-delay:1.4s"></div>';
                 front.innerHTML = '<div class="pa-lc-flash"></div>';
             }
-            if (fx === 'runes') back.innerHTML = `<div class="pa-lc-rune">${runeSvg(38, 18, 6)}</div><div class="pa-lc-rune pa-lc-rune-rev">${runeSvg(36, 12, 7)}</div>`;
+            if (fx === 'runes') {
+                back.innerHTML = `<div class="pa-lc-rune">${runeSvg(40, 36, 3.2)}</div>` +
+                    `<div class="pa-lc-rune pa-lc-rune-rev">${runeSvg(38, 24, 4)}</div>` +
+                    `<div class="pa-lc-rune pa-lc-rune-near">${runeSvg(38, 18, 6)}</div>`;
+            }
             if (fx === 'shine') {
                 back.innerHTML = '<div class="pa-lc-frame"></div>';
                 inner = document.createElement('div');
@@ -2852,6 +2877,16 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             const cx = `${wnd.offsetLeft + w / 2}px`;
             const cy = `${wnd.offsetTop + h / 2}px`;
             const z = wnd.style.zIndex || getComputedStyle(wnd).zIndex;
+            // środek okna w układzie ekranu – warstwy „na cały ekran” wyrównują się do okna przeglądarki
+            const r = wnd.getBoundingClientRect();
+            const vx = `${Math.round(r.left + r.width / 2)}px`;
+            const vy = `${Math.round(r.top + r.height / 2)}px`;
+            if (st.vx !== vx || st.vy !== vy) {
+                st.vx = vx;
+                st.vy = vy;
+                st.back.style.setProperty('--vx', vx);
+                st.back.style.setProperty('--vy', vy);
+            }
             for (const layer of [st.back, st.front]) {
                 if (layer.style.left !== cx) layer.style.left = cx;
                 if (layer.style.top !== cy) layer.style.top = cy;
@@ -2864,6 +2899,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     layer.style.setProperty('--w', `${w}px`);
                     layer.style.setProperty('--h', `${h}px`);
                     layer.style.setProperty('--s', `${Math.max(w, h)}px`);
+                    layer.style.setProperty('--d', `${Math.round(Math.hypot(w, h))}px`);
                 }
             }
         }
