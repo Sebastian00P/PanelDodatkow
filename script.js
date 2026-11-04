@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.0.6';
+    const PANEL_VERSION = '6.0.7';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -3063,6 +3063,13 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             return m ? m[1] : '';
         }
 
+        // nauczone przypisania awatar → postać (z nicku w tipie gry), klucz: świat|pozycja|grafika
+        const MAP_KEY = 'pa_act_avmap_v1';
+        let learned = {};
+        try { learned = JSON.parse(localStorage.getItem(MAP_KEY) || '{}') || {}; } catch (_) { learned = {}; }
+        const iconBase = (url) => String(url || '').split('/').pop();
+        const avKey = (world, idx, av) => `${world}|${idx}|${iconBase(avatarIcon(av))}`;
+
         function matchAvatars(win) {
             const out = [];
             if (!chars) return out;
@@ -3072,7 +3079,17 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const used = new Set();
                 const avs = Array.from(grp.querySelectorAll('.relogger__one-character'));
                 const pending = [];
-                for (const av of avs) {
+                const left = [];
+                // 1) to, co już wiemy na pewno (sprawdzone po nicku w tipie gry)
+                avs.forEach((av, idx) => {
+                    const id = learned[avKey(world, idx, av)];
+                    const ch = id !== undefined && pool.find((c) => String(c.id) === String(id) && !used.has(c.id));
+                    if (ch) {
+                        used.add(ch.id);
+                        out.push([av, ch]);
+                    } else left.push(av);
+                });
+                for (const av of left) {
                     const url = avatarIcon(av).replace(/\/{2,}/g, '/');
                     const hit = pool.filter((c) => !used.has(c.id) && c.icon && url.endsWith(String(c.icon).replace(/^\/+/, '').replace(/\/{2,}/g, '/')));
                     if (hit.length === 1) {
@@ -3203,6 +3220,38 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             tip.style.display = 'none';
         }
 
+        // tip gry nad awatarem pokazuje nick – po nim sprawdzamy, czy przypisanie jest dobre, i je zapamiętujemy
+        function verifyFromGameTip(av) {
+            if (!chars || !av.isConnected) return;
+            const grp = av.closest('.relogger__char-group');
+            if (!grp) return;
+            const world = normWorld(grp.getAttribute('data-world'));
+            const pool = chars.filter((c) => normWorld(c.world) === world && c.nick);
+            let text = '';
+            for (const t of document.querySelectorAll('.tip-wrapper')) {
+                if (t.classList.contains('pa-tip') || t.offsetParent === null || getComputedStyle(t).display === 'none') continue;
+                text += ' ' + (t.textContent || '');
+            }
+            text = text.toLowerCase();
+            if (!text.trim()) return;
+            const hits = pool.filter((c) => text.includes(String(c.nick).toLowerCase()))
+                .sort((a, b) => String(b.nick).length - String(a.nick).length);
+            const ch = hits[0];
+            if (!ch || String(av.dataset.paActChar) === String(ch.id)) {
+                if (ch) learned[avKey(world, Array.from(grp.querySelectorAll('.relogger__one-character')).indexOf(av), av)] = ch.id;
+                return;
+            }
+            const idx = Array.from(grp.querySelectorAll('.relogger__one-character')).indexOf(av);
+            // ta postać mogła być przypisana do innego awatara – zdejmujemy to przypisanie
+            for (const k of Object.keys(learned)) if (k.startsWith(`${world}|`) && String(learned[k]) === String(ch.id)) delete learned[k];
+            learned[avKey(world, idx, av)] = ch.id;
+            try { localStorage.setItem(MAP_KEY, JSON.stringify(learned)); } catch (_) {}
+            av.dataset.paActChar = ch.id;
+            render();
+            if (tipFor === av) showTip(av);
+            if (!cache[ch.id] || !isValid(cache[ch.id])) refresh();
+        }
+
         function onOver(e) {
             if (!state.acEnabled) return;
             const av = e.target.closest?.('.relogger-window .relogger__one-character[data-pa-act-char]');
@@ -3210,7 +3259,11 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 if (tipFor) hideTip();
                 return;
             }
-            if (av !== tipFor) showTip(av);
+            if (av !== tipFor) {
+                showTip(av);
+                setTimeout(() => { if (tipFor === av) verifyFromGameTip(av); }, 80);
+                setTimeout(() => { if (tipFor === av) verifyFromGameTip(av); }, 300);
+            }
         }
 
         let lastSeenWin = null;
