@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.1';
+    const PANEL_VERSION = '6.1.2';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -2841,7 +2841,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             orlica: { n: 'Dziewicza Orlica', edge: '#f3d68a', em: 'halo', ec: '#ffe7a3', p: [{ t: 'fall', s: 'bigfeather', c: ['#f6e3b0', '#e9cf8a', '#fff3d6'], n: 9 }, { t: 'wind', s: 'streak', c: ['#ffffff'], n: 8 }] },
             krolik: { n: 'Zabójczy Królik', edge: '#ff3355', em: 'eyes', ec: '#ff2240', p: [{ t: 'float', s: 'fur', c: ['#ffffff', '#ffe6ee', '#f2d4dc'], n: 30 }] },
             baulus: { n: 'Renegat Baulus', edge: '#ff8a1e', em: 'gear', ec: '#ffb347', p: [{ t: 'rise', s: 'spark', c: ['#ffd27a', '#ff8a1e', '#ff5a00'], n: 70 }] },
-            arcymag: { n: 'Piekielny Arcymag', edge: '#ff5a00', em: 'fireballs', ec: '#ffb000', p: [{ t: 'rise', s: 'flame', c: ['#ff5a00', '#ffb000', '#ff2a00'], n: 35 }] },
+            arcymag: { n: 'Piekielny Arcymag', edge: '#ff5a00', em: 'fireballs', ec: '#ffb000', p: [] },
             zoons: { n: 'Versus Zoons', edge: '#c8a05a', em: 'gears', ec: '#d9b36a', p: [{ t: 'rise', s: 'smoke', c: ['#8a8a8a', '#b0b0b0'], n: 14 }] },
             lowczyni: { n: 'Łowczyni Wspomnień', edge: '#6fd4ff', em: 'moon', ec: '#bfeaff', p: [{ t: 'float', s: 'wisp', c: ['#6fd4ff', '#bfeaff', '#9b8cff'], n: 28 }, { t: 'float', s: 'shard', c: ['#cfefff', '#8fb8ff'], n: 18 }] },
             przyzywacz: { n: 'Przyzywacz Demonów', edge: '#ff2a00', em: 'pentacandle', ec: '#ff3b1f', p: [{ t: 'fall', s: 'ash', c: ['#555555', '#888888', '#ff5a2a'], n: 40 }] },
@@ -3038,53 +3038,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     x.fillStyle = g;
                     x.fillRect(0, 0, r.w, 40 * k);
                 } else if (e === 'cornerfire') {
-                    const corners = [[0, 0], [r.w, 0], [0, r.h], [r.w, r.h]];
-                    const rate = Math.round(4 * Math.min(2, k));
-                    for (let i = 0; i < rate; i++) {
-                        const [cx, cy] = corners[Math.floor(Math.random() * 4)];
-                        const dx = C.x - cx;
-                        const dy = C.y - cy;
-                        const L = Math.hypot(dx, dy);
-                        const spd = rnd(1.6, 3.2) * Math.min(1.8, k);
-                        const ang = Math.atan2(dy, dx) + rnd(-0.35, 0.35);
-                        const smoke = Math.random() < 0.35;
-                        cf.push({ x: cx, y: cy, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 0, max: L / spd * rnd(0.55, 0.85), smoke, sz: (smoke ? rnd(14, 24) : rnd(8, 14)) * Math.min(1.6, k) });
-                    }
-                    if (cf.length > 900) cf.splice(0, cf.length - 900);
-                    cf = cf.filter((p) => p.life < p.max);
-                    cf.forEach((p) => {
-                        p.life++;
-                        p.x += p.vx;
-                        p.y += p.vy;
-                        p.vx *= 0.995;
-                        p.vy *= 0.995;
-                        const q = p.life / p.max;
-                        if (p.smoke) {
-                            p.vy -= 0.01;
-                            x.globalCompositeOperation = 'source-over';
-                            x.globalAlpha = 0.22 * (1 - q) * Math.min(1, q * 6);
-                            x.fillStyle = '#2a2422';
-                            x.beginPath();
-                            x.arc(p.x, p.y, p.sz * (1 + q * 1.8), 0, 7);
-                            x.fill();
-                        } else {
-                            x.globalCompositeOperation = 'lighter';
-                            x.globalAlpha = 0.55 * (1 - q);
-                            x.fillStyle = q < 0.25 ? '#fff0b0' : q < 0.6 ? '#ff8a1e' : '#c22a00';
-                            x.beginPath();
-                            x.arc(p.x, p.y, p.sz * (1 - q * 0.6), 0, 7);
-                            x.fill();
-                        }
-                    });
-                    x.globalCompositeOperation = 'lighter';
-                    x.globalAlpha = 1;
-                    corners.forEach(([cx, cy]) => {
-                        const g = x.createRadialGradient(cx, cy, 0, cx, cy, 90 * k);
-                        g.addColorStop(0, `rgba(255,120,30,${(0.45 + 0.15 * Math.sin(tt * 7 + cx)).toFixed(3)})`);
-                        g.addColorStop(1, 'rgba(255,60,0,0)');
-                        x.fillStyle = g;
-                        x.fillRect(0, 0, r.w, r.h);
-                    });
+                    x.restore();
+                    barbatosFx(tt);
+                    x.save();
                 } else if (e === 'icerain') {
                     const fg = x.createRadialGradient(C.x, C.y, Math.min(r.w, r.h) * 0.3, C.x, C.y, Math.max(r.w, r.h) * 0.72);
                     fg.addColorStop(0, 'rgba(190,235,255,0)');
@@ -3205,6 +3161,226 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 }
                 x.restore();
             }
+            // ---------- realistyczny ogień: cząsteczki płomieni (sprite + mieszanie „lighter”), dym i iskry ----------
+            function sprite(stops, sz) {
+                const c = document.createElement('canvas');
+                c.width = c.height = sz;
+                const g = c.getContext('2d');
+                const gr = g.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
+                stops.forEach(([o, col]) => gr.addColorStop(o, col));
+                g.fillStyle = gr;
+                g.fillRect(0, 0, sz, sz);
+                return c;
+            }
+            let FS = null;
+            let SMK = null;
+            let FP = [];
+            let FSm = [];
+            let FE = [];
+            let smokeRate = 0.35;          // ile wygasłych płomieni zamienia się w dym
+            function fireInit() {
+                if (FS) return;
+                FS = [
+                    sprite([[0, 'rgba(255,255,235,1)'], [0.25, 'rgba(255,230,140,.9)'], [0.6, 'rgba(255,170,50,.35)'], [1, 'rgba(255,120,0,0)']], 64),
+                    sprite([[0, 'rgba(255,200,90,.95)'], [0.35, 'rgba(255,130,30,.7)'], [0.7, 'rgba(220,60,10,.25)'], [1, 'rgba(180,30,0,0)']], 64),
+                    sprite([[0, 'rgba(230,80,20,.8)'], [0.45, 'rgba(170,30,5,.45)'], [1, 'rgba(90,10,0,0)']], 64),
+                ];
+                SMK = sprite([[0, 'rgba(40,34,32,.55)'], [0.5, 'rgba(35,30,28,.3)'], [1, 'rgba(30,26,24,0)']], 64);
+            }
+            const fnoise = (x0, y0, t) => Math.sin(x0 * 0.031 + t * 1.7) * Math.cos(y0 * 0.027 - t * 1.3) + 0.5 * Math.sin((x0 + y0) * 0.05 + t * 2.3);
+            const flameP = (px, py, vx, vy, sz, life) => FP.push({ x: px, y: py, vx, vy, sz, life: 0, max: life });
+            const smokeP = (px, py, vx, vy, sz, life) => FSm.push({ x: px, y: py, vx, vy, sz, life: 0, max: life });
+            const emberP = (px, py, vx, vy) => FE.push({ x: px, y: py, vx, vy, life: 0, max: rnd(40, 90) });
+            function fireStepDraw(tt) {
+                for (const s of FSm) {
+                    s.life++;
+                    s.vx += fnoise(s.x, s.y, tt) * 0.03;
+                    s.vy -= 0.012;
+                    s.vx *= 0.985;
+                    s.vy *= 0.985;
+                    s.x += s.vx;
+                    s.y += s.vy;
+                }
+                FSm = FSm.filter((s) => s.life < s.max);
+                for (const p of FP) {
+                    p.life++;
+                    p.vx += fnoise(p.x, p.y, tt) * 0.09;
+                    p.vy -= 0.05;
+                    p.vx *= 0.97;
+                    p.vy *= 0.97;
+                    p.x += p.vx;
+                    p.y += p.vy;
+                }
+                FP = FP.filter((p) => {
+                    if (p.life >= p.max) {
+                        if (Math.random() < smokeRate) smokeP(p.x, p.y, p.vx * 0.5, p.vy * 0.5 - 0.2, p.sz * 1.3, rnd(50, 90));
+                        return false;
+                    }
+                    return true;
+                });
+                for (const e2 of FE) {
+                    e2.life++;
+                    e2.vx += fnoise(e2.x, e2.y, tt) * 0.05;
+                    e2.vy -= 0.02;
+                    e2.x += e2.vx;
+                    e2.y += e2.vy;
+                }
+                FE = FE.filter((e2) => e2.life < e2.max);
+                // limity – żeby na dużym ekranie nie przybywało bez końca
+                if (FP.length > 1400) FP.splice(0, FP.length - 1400);
+                if (FSm.length > 500) FSm.splice(0, FSm.length - 500);
+                if (FE.length > 300) FE.splice(0, FE.length - 300);
+                x.globalCompositeOperation = 'source-over';
+                for (const s of FSm) {
+                    const q = s.life / s.max;
+                    const z = s.sz * (1 + q * 2.2);
+                    x.globalAlpha = Math.min(1, q * 4) * (1 - q) * 0.85;
+                    x.drawImage(SMK, s.x - z, s.y - z, z * 2, z * 2);
+                }
+                x.globalCompositeOperation = 'lighter';
+                for (const p of FP) {
+                    const q = p.life / p.max;
+                    const spr = q < 0.3 ? FS[0] : q < 0.65 ? FS[1] : FS[2];
+                    const z = p.sz * (1 - q * 0.55);
+                    x.globalAlpha = (1 - q) * 0.9;
+                    x.drawImage(spr, p.x - z, p.y - z * 1.15, z * 2, z * 2.3);
+                }
+                for (const e2 of FE) {
+                    const q = e2.life / e2.max;
+                    x.globalAlpha = (1 - q) * (0.6 + 0.4 * Math.random());
+                    x.fillStyle = q < 0.5 ? '#ffe7a0' : '#ff8a2a';
+                    x.fillRect(e2.x, e2.y, 1.6, 1.6);
+                }
+                x.globalAlpha = 1;
+                x.globalCompositeOperation = 'source-over';
+            }
+            function arcymagFx(tt) {
+                fireInit();
+                const r = R();
+                const rr = 110 * k;
+                const n = 36;
+                for (let i = 0; i < n; i++) {
+                    if (Math.random() < 0.33) {
+                        const a = i / n * 6.283 + tt * 0.15;
+                        flameP(C.x + Math.cos(a) * rr, C.y + Math.sin(a) * rr * 0.62, rnd(-0.2, 0.2), -rnd(0.4, 1), rnd(5, 9) * k, rnd(14, 24));
+                    }
+                }
+                x.save();
+                x.globalCompositeOperation = 'lighter';
+                x.strokeStyle = 'rgba(255,120,30,.35)';
+                x.lineWidth = 2;
+                x.beginPath(); x.ellipse(C.x, C.y, rr, rr * 0.62, 0, 0, 7); x.stroke();
+                x.strokeStyle = 'rgba(255,200,90,.25)';
+                x.setLineDash([3, 9]);
+                x.lineDashOffset = -tt * 20;
+                x.beginPath(); x.ellipse(C.x, C.y, rr * 1.22, rr * 0.62 * 1.22, 0, 0, 7); x.stroke();
+                x.restore();
+                const balls = [];
+                for (let i = 0; i < 4; i++) {
+                    const a = tt * 1.25 + i * Math.PI / 2;
+                    const ox = C.x + Math.cos(a) * rr * 1.35;
+                    const oy = C.y + Math.sin(a) * rr * 0.85;
+                    const va = a + Math.PI / 2;
+                    const sp = 1.25 * rr * 1.35 / 60;
+                    for (let j = 0; j < 3; j++) flameP(ox + rnd(-3, 3), oy + rnd(-3, 3), -Math.cos(va) * sp * 0.35 + rnd(-0.4, 0.4), -Math.sin(va) * sp * 0.35 - rnd(0.2, 0.8), rnd(9, 14) * k, rnd(16, 28));
+                    if (Math.random() < 0.3) emberP(ox, oy, rnd(-1, 1), -rnd(0.5, 1.5));
+                    balls.push([ox, oy, i]);
+                }
+                if (Math.random() < 0.4) emberP(rnd(0, r.w), r.h, rnd(-0.5, 0.5), -rnd(1, 2.2));
+                fireStepDraw(tt);
+                x.save();
+                x.globalCompositeOperation = 'lighter';
+                for (const [ox, oy, i] of balls) {
+                    const z = 13 * k * (1 + 0.08 * Math.sin(tt * 17 + i));
+                    x.drawImage(FS[0], ox - z * 1.6, oy - z * 1.6, z * 3.2, z * 3.2);
+                    x.drawImage(FS[0], ox - z * 0.8, oy - z * 0.8, z * 1.6, z * 1.6);
+                }
+                x.restore();
+            }
+            // Barbatos: stonowany ogień wzdłuż dolnej krawędzi + spadające, płonące meteoryty z uderzeniem przy ziemi
+            let MET = [];
+            let FLASH = [];
+            let nextMet = 0;
+            function barbatosFx(tt) {
+                fireInit();
+                smokeRate = 0.1;
+                const r = R();
+                const glow = x.createLinearGradient(0, r.h, 0, r.h - 110 * k);
+                glow.addColorStop(0, `rgba(255,90,20,${(0.38 + 0.08 * Math.sin(tt * 3)).toFixed(3)})`);
+                glow.addColorStop(1, 'rgba(255,60,0,0)');
+                x.fillStyle = glow;
+                x.fillRect(0, r.h - 110 * k, r.w, 110 * k);
+                // dolny ogień – rzadkie, niewysokie płomienie
+                const step = 16 * Math.min(1.6, k);
+                for (let fx0 = 0; fx0 < r.w; fx0 += step) {
+                    if (Math.random() < 0.28) flameP(fx0 + rnd(-6, 6), r.h + 4, rnd(-0.3, 0.3), -rnd(0.8, 1.8) * Math.min(1.5, k), rnd(8, 14) * k, rnd(18, 34));
+                }
+                if (Math.random() < 0.12) smokeP(rnd(0, r.w), r.h, rnd(-0.3, 0.3), -rnd(0.5, 1), rnd(14, 22) * k, rnd(80, 130));
+                if (Math.random() < 0.3) emberP(rnd(0, r.w), r.h - 4, rnd(-0.6, 0.6), -rnd(1, 2.4));
+                // meteoryty
+                if (tt > nextMet) {
+                    nextMet = tt + rnd(0.5, 1.3) / Math.min(1.8, Math.max(0.8, r.w / 500));
+                    const dir = Math.random() < 0.5 ? 1 : -1;
+                    const ang = Math.PI / 2 - dir * rnd(0.35, 0.6);
+                    const sp = rnd(5, 8) * Math.min(1.6, k);
+                    MET.push({ x: rnd(-0.1, 1.1) * r.w - dir * r.h * 0.35, y: -30, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sz: rnd(4, 8) * Math.min(1.6, k), rot: rnd(0, 6.28) });
+                }
+                MET = MET.filter((m) => {
+                    m.x += m.vx;
+                    m.y += m.vy;
+                    m.rot += 0.08;
+                    for (let j = 0; j < 3; j++) flameP(m.x + rnd(-m.sz * 0.5, m.sz * 0.5), m.y + rnd(-m.sz * 0.5, m.sz * 0.5), -m.vx * 0.15 + rnd(-0.3, 0.3), -m.vy * 0.15 + rnd(-0.3, 0.3), m.sz * rnd(1.4, 2.2), rnd(14, 26));
+                    if (Math.random() < 0.1) smokeP(m.x, m.y, -m.vx * 0.1, -m.vy * 0.1, m.sz * 1.4, rnd(40, 70));
+                    if (Math.random() < 0.4) emberP(m.x, m.y, -m.vx * 0.2 + rnd(-1, 1), -m.vy * 0.2 + rnd(-1, 1));
+                    if (m.y >= r.h - 6) {
+                        for (let j = 0; j < 14; j++) {
+                            const a = -Math.PI / 2 + rnd(-1.2, 1.2);
+                            const v = rnd(1.5, 4.5) * Math.min(1.5, k);
+                            flameP(m.x, r.h - 4, Math.cos(a) * v, Math.sin(a) * v, rnd(8, 15) * k, rnd(16, 30));
+                        }
+                        for (let j = 0; j < 10; j++) {
+                            const a = -Math.PI / 2 + rnd(-1.3, 1.3);
+                            const v = rnd(2, 6);
+                            emberP(m.x, r.h - 4, Math.cos(a) * v, Math.sin(a) * v);
+                        }
+                        smokeP(m.x, r.h - 6, 0, -0.8, m.sz * 3.5, rnd(90, 140));
+                        FLASH.push({ x: m.x, y: r.h, t: tt, s: m.sz });
+                        return false;
+                    }
+                    return m.x > -200 && m.x < r.w + 200;
+                });
+                fireStepDraw(tt);
+                x.save();
+                x.globalCompositeOperation = 'lighter';
+                FLASH = FLASH.filter((f) => tt - f.t < 0.5);
+                for (const f of FLASH) {
+                    const q = (tt - f.t) / 0.5;
+                    const z = f.s * (8 + q * 10);
+                    x.globalAlpha = (1 - q) * 0.9;
+                    x.drawImage(FS[0], f.x - z, f.y - z, z * 2, z * 2);
+                }
+                for (const m of MET) {
+                    const z = m.sz * 2.6;
+                    x.globalAlpha = 1;
+                    x.drawImage(FS[0], m.x - z, m.y - z, z * 2, z * 2);
+                }
+                x.restore();
+                for (const m of MET) {
+                    x.save();
+                    x.translate(m.x, m.y);
+                    x.rotate(m.rot);
+                    x.fillStyle = '#3a1a0c';
+                    x.beginPath();
+                    x.moveTo(-m.sz * 0.7, -m.sz * 0.4); x.lineTo(0, -m.sz * 0.75); x.lineTo(m.sz * 0.7, -m.sz * 0.2);
+                    x.lineTo(m.sz * 0.5, m.sz * 0.6); x.lineTo(-m.sz * 0.4, m.sz * 0.65);
+                    x.closePath();
+                    x.fill();
+                    x.strokeStyle = 'rgba(255,170,60,.85)';
+                    x.lineWidth = 1;
+                    x.stroke();
+                    x.restore();
+                }
+            }
             // świeca: woskowy korpus z zaciekami, knot, dwuwarstwowy migoczący płomień (niebieska podstawa), poświata i smużka dymu
             function candle(tt, i, sc) {
                 const fl = Math.sin(tt * 9 + i * 2.3) * 0.5 + Math.sin(tt * 23 + i * 5.1) * 0.3 + Math.sin(tt * 41 + i) * 0.2;
@@ -3270,6 +3446,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 x.restore();
             }
             function emblem(tt) {
+                if (def.em === 'fireballs') {
+                    arcymagFx(tt);
+                    return;
+                }
                 const rr = 105 * k;
                 const e = def.em;
                 x.save();
@@ -3294,25 +3474,6 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                         for (let i = 0; i < 4; i++) { x.rotate(Math.PI / 2); x.beginPath(); x.moveTo(gr * 0.35, 0); x.lineTo(gr * 0.78, 0); x.stroke(); }
                         x.restore();
                     });
-                } else if (e === 'fireballs') {
-                    x.globalAlpha = 0.55;
-                    x.setLineDash([6, 8]);
-                    x.rotate(-tt * 0.2);
-                    x.beginPath(); x.arc(0, 0, rr, 0, 7); x.stroke();
-                    x.setLineDash([]);
-                    x.rotate(tt * 0.2);
-                    x.globalCompositeOperation = 'lighter';
-                    for (let i = 0; i < 4; i++) {
-                        const a = tt * 1.4 + i * Math.PI / 2;
-                        for (let j = 0; j < 8; j++) {
-                            const b = a - j * 0.07;
-                            x.globalAlpha = 0.5 * (1 - j / 8);
-                            x.fillStyle = j < 2 ? '#fff3c0' : '#ff7a00';
-                            x.beginPath();
-                            x.arc(Math.cos(b) * rr * 1.15, Math.sin(b) * rr * 0.75, (9 - j) * k, 0, 7);
-                            x.fill();
-                        }
-                    }
                 } else if (e === 'moon') {
                     x.beginPath(); x.arc(0, 0, rr, 0, 7);
                     x.globalAlpha = 0.25 + 0.15 * Math.sin(tt * 1.5);
