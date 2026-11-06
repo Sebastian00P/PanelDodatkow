@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.3';
+    const PANEL_VERSION = '6.1.4';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -4461,6 +4461,15 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         try { learned = JSON.parse(localStorage.getItem(MAP_KEY) || '{}') || {}; } catch (_) { learned = {}; }
         const iconBase = (url) => String(url || '').split('/').pop();
         const avKey = (world, idx, av) => `${world}|${idx}|${iconBase(avatarIcon(av))}`;
+        // pozycja awatara w kolejności gry (zapamiętana przed sortowaniem, bo sortowanie przestawia elementy)
+        function origIndex(grp, av) {
+            if (av.dataset.paIdx === undefined) {
+                Array.from(grp.querySelectorAll('.relogger__one-character')).forEach((a, i) => {
+                    if (a.dataset.paIdx === undefined) a.dataset.paIdx = String(i);
+                });
+            }
+            return Number(av.dataset.paIdx);
+        }
 
         function matchAvatars(win) {
             const out = [];
@@ -4473,8 +4482,8 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const pending = [];
                 const left = [];
                 // 1) to, co już wiemy na pewno (sprawdzone po nicku w tipie gry)
-                avs.forEach((av, idx) => {
-                    const id = learned[avKey(world, idx, av)];
+                avs.forEach((av) => {
+                    const id = learned[avKey(world, origIndex(grp, av), av)];
                     const ch = id !== undefined && pool.find((c) => String(c.id) === String(id) && !used.has(c.id));
                     if (ch) {
                         used.add(ch.id);
@@ -4532,39 +4541,42 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             if (tipFor && tipFor.isConnected) showTip(tipFor);
         }
 
-        // sortowanie postaci w oknie przelogowywania po poziomie (CSS order – bez przestawiania
-        // elementów gry, więc zapamiętane dopasowania awatarów zostają ważne)
+        // sortowanie postaci w oknie przelogowywania po poziomie – przestawiamy same awatary
+        // (albo ich bezpośrednie opakowania) w obrębie jednego świata; „Jak w grze” = kolejność z gry
+        function sortItem(container, av) {
+            let el = av;
+            while (el && el.parentElement !== container) el = el.parentElement;
+            return el;
+        }
         function applySort(win) {
             const mode = state.acSort === 'asc' || state.acSort === 'desc' ? state.acSort : 'none';
             const lvlOf = new Map();
             if (mode !== 'none') for (const [av, ch] of matchAvatars(win)) lvlOf.set(av, Number(ch.lvl ?? ch.level) || 0);
             for (const grp of win.querySelectorAll('.relogger__char-group')) {
                 const avs = Array.from(grp.querySelectorAll('.relogger__one-character'));
-                if (!avs.length) continue;
-                const box = avs[0].parentElement;
-                if (mode === 'none') {
-                    avs.forEach((av) => { av.style.order = ''; });
-                    if (box.dataset.paSortDisp !== undefined) {
-                        box.style.display = box.dataset.paSortDisp;
-                        box.style.flexWrap = '';
-                        delete box.dataset.paSortDisp;
-                    }
-                    continue;
-                }
-                const disp = getComputedStyle(box).display;
-                if (!/flex|grid/.test(disp) && box.dataset.paSortDisp === undefined) {
-                    box.dataset.paSortDisp = box.style.display || '';
-                    box.style.display = 'flex';
-                    box.style.flexWrap = 'wrap';
-                }
-                const ranked = avs.map((av, i) => ({ av, i, lvl: lvlOf.has(av) ? lvlOf.get(av) : null }))
-                    .sort((a, b) => {
-                        if (a.lvl === null && b.lvl === null) return a.i - b.i;
-                        if (a.lvl === null) return 1;
-                        if (b.lvl === null) return -1;
-                        return (mode === 'desc' ? b.lvl - a.lvl : a.lvl - b.lvl) || a.i - b.i;
-                    });
-                ranked.forEach((r, n) => { const o = String(n + 1); if (r.av.style.order !== o) r.av.style.order = o; });
+                if (avs.length < 2) continue;
+                avs.forEach((av) => origIndex(grp, av));
+                // najniższy wspólny kontener awatarów tej grupy
+                let container = avs[0].parentElement;
+                while (container && !avs.every((av) => container.contains(av))) container = container.parentElement;
+                if (!container) continue;
+                const items = avs.map((av) => ({ av, el: sortItem(container, av), i: Number(av.dataset.paIdx), lvl: lvlOf.has(av) ? lvlOf.get(av) : null }));
+                if (new Set(items.map((it) => it.el)).size !== items.length) continue;   // dwa awatary w jednym opakowaniu – nie ruszamy
+                const sorted = items.slice().sort((a, b) => {
+                    if (mode === 'none') return a.i - b.i;
+                    if (a.lvl === null && b.lvl === null) return a.i - b.i;
+                    if (a.lvl === null) return 1;
+                    if (b.lvl === null) return -1;
+                    return (mode === 'desc' ? b.lvl - a.lvl : a.lvl - b.lvl) || a.i - b.i;
+                });
+                const current = Array.from(container.children).filter((c) => items.some((it) => it.el === c));
+                if (current.every((c, n) => c === sorted[n].el)) continue;          // już w dobrej kolejności
+                // wstawiamy w to samo miejsce, w którym zaczynała się lista awatarów
+                const anchor = current[0].previousSibling;
+                const frag = document.createDocumentFragment();
+                sorted.forEach((it) => frag.appendChild(it.el));
+                if (anchor) anchor.after(frag);
+                else container.prepend(frag);
             }
         }
 
@@ -4667,10 +4679,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 .sort((a, b) => String(b.nick).length - String(a.nick).length);
             const ch = hits[0];
             if (!ch || String(av.dataset.paActChar) === String(ch.id)) {
-                if (ch) learned[avKey(world, Array.from(grp.querySelectorAll('.relogger__one-character')).indexOf(av), av)] = ch.id;
+                if (ch) learned[avKey(world, origIndex(grp, av), av)] = ch.id;
                 return;
             }
-            const idx = Array.from(grp.querySelectorAll('.relogger__one-character')).indexOf(av);
+            const idx = origIndex(grp, av);
             // ta postać mogła być przypisana do innego awatara – zdejmujemy to przypisanie
             for (const k of Object.keys(learned)) if (k.startsWith(`${world}|`) && String(learned[k]) === String(ch.id)) delete learned[k];
             learned[avKey(world, idx, av)] = ch.id;
@@ -4786,7 +4798,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
     // ------------------------------------------------------------------
     //  WRÓG NA MAPIE – gdy na mapie pojawi się wróg, wysyła na czat klanowy
-    //  „Wróg [nick lvlprof] na mapie - nazwa mapy”. O tym samym graczu na tej
+    //  „Wróg nick lvlprof na mapie - nazwa mapy”. O tym samym graczu na tej
     //  samej mapie najwyżej raz na minutę; po zmianie mapy licznik od nowa.
     // ------------------------------------------------------------------
     const enemyAlert = (function () {
@@ -4841,7 +4853,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             if (reported[id] && now - reported[id] < REPEAT_MS) return;
             reported[id] = now;
             const who = `${o.nick || '?'}${o.lvl ? ` ${o.lvl}${o.prof || ''}` : ''}`;
-            if (queue.length < MAX_QUEUE) queue.push(`Wróg [${who}] na mapie - ${mapName()}`);
+            if (queue.length < MAX_QUEUE) queue.push(`Wróg ${who} na mapie - ${mapName()}`);
             pump();
         }
 
@@ -5222,7 +5234,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             name: 'Wróg na mapie',
             tag: 'Klan',
             isNew: true,
-            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg [nick poziom profesja] na mapie - nazwa mapy”. Działa tylko, gdy jesteś w klanie. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
+            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg nick poziom+profesja na mapie - nazwa mapy”. Działa tylko, gdy jesteś w klanie. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
             settings: () => `
               <label class="pa-check"><input type="checkbox" data-pa-opt="eaToast"> Pokazuj też u mnie komunikat z wysłaną wiadomością</label>
               <p class="pa-hint">Za wroga uznawany jest gracz z relacją „wróg” (wróg, wrogi klan, wroga frakcja) – tak jak czerwone kropki na Nowej mapie. Wiadomości idą co najmniej co 2 s, żeby gra ich nie blokowała.</p>`,
