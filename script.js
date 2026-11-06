@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.2';
+    const PANEL_VERSION = '6.1.3';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -80,6 +80,10 @@
         // aktywności w oknie przelogowywania
         acEnabled: false,
         acShowDone: true,
+        acSort: 'none',
+        // wróg na mapie
+        eaEnabled: false,
+        eaToast: true,               // sortowanie postaci w oknie przelogowywania: none / desc / asc
         lcPulse: true,
         lcFx: 'rays',                 // rodzaj efektu legendy
         lcFxScope: 'game',            // zasięg efektu: 'game' = okno gry (#GAME_CANVAS), 'page' = całe okno przeglądarki
@@ -107,7 +111,7 @@
         'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos', 'mmSideHidden', 'mmFog',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
-        'lcEnabled', 'lcPulse', 'lcFx', 'lcFxScope', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone',
+        'lcEnabled', 'lcPulse', 'lcFx', 'lcFxScope', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone', 'acSort', 'eaEnabled', 'eaToast',
     ];
 
     function loadSettings() {
@@ -2911,6 +2915,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const mult = Math.max(0.6, Math.min(2.6, (W * H) / (380 * 300)));
                 def.p.forEach((cfg) => { for (let i = 0; i < Math.round(cfg.n * mult); i++) parts.push(mk(cfg, true)); });
                 mkIce();
+                setupCrosses();
             }
             function resize() {
                 const w = Math.max(1, Math.round(parseFloat(st.back.style.getPropertyValue('--sw')) || window.innerWidth));
@@ -3596,6 +3601,148 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                     if (p.y < 0 || p.y > H) p.vy *= -1;
                 }
             }
+            // ---------- Przyzywacz: gotyckie krzyże – drżą, rozżarzają się i odwracają (zostają odwrócone) ----------
+            let crosses = [];
+            let crossEmbers = [];
+            let crossStart = -1;
+            function setupCrosses() {
+                crosses = [];
+                crossEmbers = [];
+                crossStart = -1;
+                if (def.em !== 'pentacandle') return;
+                const m = Math.min(W, H);
+                const count = Math.max(3, Math.min(7, Math.round((W * H) / 110000)));
+                const avoidR = 105 * k + 60;
+                let tries = 0;
+                while (crosses.length < count && tries++ < 500) {
+                    const s0 = m * rnd(0.12, 0.2);
+                    const cx = rnd(s0 * 0.5, W - s0 * 0.5);
+                    const cy = rnd(s0 * 0.6, H - s0 * 0.6);
+                    if (Math.hypot(cx - C.x, cy - C.y) < avoidR + s0 * 0.5) continue;
+                    if (crosses.some((c) => Math.hypot(c.x - cx, c.y - cy) < (c.s + s0) * 0.6)) continue;
+                    crosses.push({ x: cx, y: cy, s: s0, tilt: rnd(-0.18, 0.18), at: 0, burst: false });
+                }
+                const order = crosses.map((_, i) => i).sort(() => Math.random() - 0.5);
+                let t = 0.8;
+                order.forEach((ci) => { crosses[ci].at = t; t += rnd(0.45, 0.95); });
+            }
+            function crossPath(s) {
+                const bw = s * 0.085;
+                const top = -s * 0.5;
+                const bot = s * 0.5;
+                const cy = -s * 0.2;
+                const arm = s * 0.3;
+                const tip = s * 0.07;
+                x.beginPath();
+                x.moveTo(0, top - tip);
+                x.lineTo(bw * 1.5, top + tip * 0.6); x.lineTo(bw, top + tip * 1.2); x.lineTo(bw, cy - bw);
+                x.lineTo(arm - tip, cy - bw); x.lineTo(arm - tip * 0.4, cy - bw * 1.5); x.lineTo(arm + tip, cy);
+                x.lineTo(arm - tip * 0.4, cy + bw * 1.5); x.lineTo(arm - tip, cy + bw); x.lineTo(bw, cy + bw);
+                x.lineTo(bw, bot - tip * 1.2); x.lineTo(bw * 1.5, bot - tip * 0.6); x.lineTo(0, bot + tip);
+                x.lineTo(-bw * 1.5, bot - tip * 0.6); x.lineTo(-bw, bot - tip * 1.2); x.lineTo(-bw, cy + bw);
+                x.lineTo(-arm + tip, cy + bw); x.lineTo(-arm + tip * 0.4, cy + bw * 1.5); x.lineTo(-arm - tip, cy);
+                x.lineTo(-arm + tip * 0.4, cy - bw * 1.5); x.lineTo(-arm + tip, cy - bw); x.lineTo(-bw, cy - bw);
+                x.lineTo(-bw, top + tip * 1.2); x.lineTo(-bw * 1.5, top + tip * 0.6);
+                x.closePath();
+            }
+            function drawCross(s, glow, alpha) {
+                const cy = -s * 0.2;
+                x.save();
+                x.globalAlpha = alpha;
+                x.shadowColor = '#ff2a00';
+                x.shadowBlur = 4 + glow * 24;
+                const g = x.createLinearGradient(-s * 0.12, -s * 0.5, s * 0.12, s * 0.5);
+                g.addColorStop(0, `rgb(${Math.round(38 + glow * 90)},${Math.round(30 + glow * 10)},${Math.round(30 - glow * 10)})`);
+                g.addColorStop(0.5, `rgb(${Math.round(64 + glow * 120)},${Math.round(44 + glow * 20)},40)`);
+                g.addColorStop(1, `rgb(${Math.round(26 + glow * 70)},${Math.round(20 + glow * 6)},20)`);
+                x.fillStyle = g;
+                crossPath(s);
+                x.fill();
+                x.shadowBlur = 0;
+                x.strokeStyle = `rgba(${Math.round(120 + glow * 135)},${Math.round(70 + glow * 60)},60,${(0.55 + glow * 0.4).toFixed(2)})`;
+                x.lineWidth = Math.max(1, s * 0.018);
+                crossPath(s);
+                x.stroke();
+                x.lineWidth = Math.max(1.2, s * 0.03);
+                x.beginPath(); x.arc(0, cy, s * 0.16, 0, 7); x.stroke();
+                if (glow > 0.2) {
+                    x.globalCompositeOperation = 'lighter';
+                    x.strokeStyle = `rgba(255,${Math.round(150 + glow * 80)},90,${(glow * 0.95).toFixed(2)})`;
+                    x.lineWidth = Math.max(1, s * 0.022);
+                    x.shadowColor = '#ff6a1a';
+                    x.shadowBlur = 8 * glow;
+                    x.beginPath();
+                    x.moveTo(0, -s * 0.44); x.lineTo(s * 0.012, -s * 0.3); x.lineTo(-s * 0.01, cy - s * 0.03);
+                    x.lineTo(s * 0.015, cy + s * 0.12); x.lineTo(-s * 0.012, s * 0.25); x.lineTo(0, s * 0.44);
+                    x.moveTo(-s * 0.26, cy); x.lineTo(-s * 0.12, cy + s * 0.012); x.lineTo(s * 0.12, cy - s * 0.01); x.lineTo(s * 0.26, cy);
+                    x.stroke();
+                }
+                x.restore();
+            }
+            const easeBack = (t) => 1 + 2.7 * Math.pow(t - 1, 3) + 1.7 * Math.pow(t - 1, 2);
+            function crossesFx(tt) {
+                if (!crosses.length) return;
+                if (crossStart < 0) crossStart = tt;
+                const lt = tt - crossStart;
+                const SHAKE = 0.6;
+                const IGNITE = 0.35;
+                const FLIP = 0.7;
+                for (const c of crosses) {
+                    const p = lt - c.at;
+                    let dx = 0;
+                    let dy = 0;
+                    let rot = c.tilt;
+                    let glow = 0.05;
+                    let alpha = 0.28;
+                    let flip = 0;
+                    if (p > 0 && p < SHAKE) {
+                        const q = p / SHAKE;
+                        const amp = q * c.s * 0.035;
+                        dx = Math.sin(p * 90) * amp;
+                        dy = Math.cos(p * 70) * amp * 0.6;
+                        rot += Math.sin(p * 60) * 0.07 * q;
+                        glow = 0.05 + 0.25 * q;
+                        alpha = 0.3 + 0.2 * q;
+                    } else if (p >= SHAKE) {
+                        const ig = Math.min(1, (p - SHAKE) / IGNITE);
+                        const fp = Math.min(1, Math.max(0, (p - SHAKE - IGNITE * 0.5) / FLIP));
+                        flip = easeBack(fp);
+                        glow = 0.3 + 0.7 * ig;
+                        alpha = 0.5 + 0.45 * ig;
+                        if (!c.burst) {
+                            c.burst = true;
+                            for (let i = 0; i < 18; i++) crossEmbers.push({ x: c.x, y: c.y, vx: rnd(-2.4, 2.4), vy: rnd(-3, 0.4), life: 1 });
+                        }
+                        if (fp >= 1) glow = 0.75 + 0.25 * Math.sin(tt * 6 + c.x);
+                    }
+                    x.save();
+                    x.translate(c.x + dx, c.y + dy);
+                    x.rotate(rot + flip * Math.PI);
+                    if (glow > 0.35) {
+                        x.globalCompositeOperation = 'lighter';
+                        const fg = x.createRadialGradient(0, 0, 0, 0, 0, c.s * 0.7);
+                        fg.addColorStop(0, `rgba(255,70,20,${(0.28 * glow).toFixed(3)})`);
+                        fg.addColorStop(1, 'rgba(255,40,0,0)');
+                        x.fillStyle = fg;
+                        x.beginPath(); x.arc(0, 0, c.s * 0.7, 0, 7); x.fill();
+                        x.globalCompositeOperation = 'source-over';
+                    }
+                    drawCross(c.s, glow, alpha);
+                    x.restore();
+                }
+                if (crossEmbers.length) {
+                    x.save();
+                    x.globalCompositeOperation = 'lighter';
+                    x.fillStyle = '#ff7a2a';
+                    crossEmbers = crossEmbers.filter((e) => e.life > 0);
+                    for (const e of crossEmbers) {
+                        e.x += e.vx; e.y += e.vy; e.vy += 0.05; e.life -= 0.016;
+                        x.globalAlpha = Math.max(0, e.life);
+                        x.beginPath(); x.arc(e.x, e.y, 1.8, 0, 7); x.fill();
+                    }
+                    x.restore();
+                }
+            }
             function frame(now) {
                 raf = 0;
                 if (!alive || !cv.isConnected) return;
@@ -3603,6 +3750,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 const tt = (now - t0) / 1000;
                 x.clearRect(0, 0, W, H);
                 vignette(tt);
+                if (def.em === 'pentacandle') crossesFx(tt);
                 const behind = BEHIND.includes(def.em);
                 if (behind) { screenFx(tt); emblem(tt); }
                 for (const p of parts) { step(p); drawP(p); }
@@ -4380,7 +4528,44 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 badge.classList.toggle('pa-act-done', n === 0);
                 badge.textContent = n ? String(n) : '✓';
             }
+            applySort(win);
             if (tipFor && tipFor.isConnected) showTip(tipFor);
+        }
+
+        // sortowanie postaci w oknie przelogowywania po poziomie (CSS order – bez przestawiania
+        // elementów gry, więc zapamiętane dopasowania awatarów zostają ważne)
+        function applySort(win) {
+            const mode = state.acSort === 'asc' || state.acSort === 'desc' ? state.acSort : 'none';
+            const lvlOf = new Map();
+            if (mode !== 'none') for (const [av, ch] of matchAvatars(win)) lvlOf.set(av, Number(ch.lvl ?? ch.level) || 0);
+            for (const grp of win.querySelectorAll('.relogger__char-group')) {
+                const avs = Array.from(grp.querySelectorAll('.relogger__one-character'));
+                if (!avs.length) continue;
+                const box = avs[0].parentElement;
+                if (mode === 'none') {
+                    avs.forEach((av) => { av.style.order = ''; });
+                    if (box.dataset.paSortDisp !== undefined) {
+                        box.style.display = box.dataset.paSortDisp;
+                        box.style.flexWrap = '';
+                        delete box.dataset.paSortDisp;
+                    }
+                    continue;
+                }
+                const disp = getComputedStyle(box).display;
+                if (!/flex|grid/.test(disp) && box.dataset.paSortDisp === undefined) {
+                    box.dataset.paSortDisp = box.style.display || '';
+                    box.style.display = 'flex';
+                    box.style.flexWrap = 'wrap';
+                }
+                const ranked = avs.map((av, i) => ({ av, i, lvl: lvlOf.has(av) ? lvlOf.get(av) : null }))
+                    .sort((a, b) => {
+                        if (a.lvl === null && b.lvl === null) return a.i - b.i;
+                        if (a.lvl === null) return 1;
+                        if (b.lvl === null) return -1;
+                        return (mode === 'desc' ? b.lvl - a.lvl : a.lvl - b.lvl) || a.i - b.i;
+                    });
+                ranked.forEach((r, n) => { const o = String(n + 1); if (r.av.style.order !== o) r.av.style.order = o; });
+            }
         }
 
         // ---------- tip ----------
@@ -4551,7 +4736,13 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             document.removeEventListener('wheel', onWheel, { capture: true });
             hideTip();
             document.querySelectorAll('.pa-act-badge').forEach((b) => b.remove());
-            document.querySelectorAll('.relogger-window.pa-act-on').forEach((w) => w.classList.remove('pa-act-on'));
+            document.querySelectorAll('.relogger-window.pa-act-on').forEach((w) => {
+                const keep = state.acSort;
+                state.acSort = 'none';
+                applySort(w);
+                state.acSort = keep;
+                w.classList.remove('pa-act-on');
+            });
         }
 
         function init() {
@@ -4580,7 +4771,107 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             init,
             render: queueRender,
             setEnabled(on) { if (on) { enable(); refresh(true); } else disable(); },
+            setSort(mode) {
+                state.acSort = mode === 'asc' || mode === 'desc' ? mode : 'none';
+                saveSettings();
+                const win = document.querySelector('.relogger-window');
+                if (win && state.acEnabled) applySort(win);
+            },
+            renderSettings(modal) {
+                const mode = state.acSort === 'asc' || state.acSort === 'desc' ? state.acSort : 'none';
+                modal.querySelectorAll('[data-pa-acsort]').forEach((b) => b.classList.toggle('pa-on', b.getAttribute('data-pa-acsort') === mode));
+            },
         };
+    })();
+
+    // ------------------------------------------------------------------
+    //  WRÓG NA MAPIE – gdy na mapie pojawi się wróg, wysyła na czat klanowy
+    //  „Wróg [nick lvlprof] na mapie - nazwa mapy”. O tym samym graczu na tej
+    //  samej mapie najwyżej raz na minutę; po zmianie mapy licznik od nowa.
+    // ------------------------------------------------------------------
+    const enemyAlert = (function () {
+        const REPEAT_MS = 60 * 1000;
+        const GAP_MS = 2200;              // gra nie lubi wiadomości częściej niż co ~2 s
+        const MAX_QUEUE = 8;
+        let present = {};                 // gracze widoczni teraz na mapie (id -> true)
+        let reported = {};                // id -> czas ostatniej wiadomości (na tej mapie)
+        let mapId = null;
+        const queue = [];
+        let sending = false;
+        let lastSent = 0;
+
+        function isEnemy(o) {
+            const rel = String(o.relation ?? '').toLowerCase();
+            if (rel && isNaN(Number(rel))) return /en/.test(rel);
+            return [3, 6, 8].includes(Number(o.relation));
+        }
+        function inClan() {
+            const c = PAGE.Engine?.hero?.d?.clan ?? PAGE.hero?.clan;
+            if (c && typeof c === 'object') return Boolean(Number(c.id));
+            return Number(c) > 0;
+        }
+        function mapName() {
+            return String(PAGE.Engine?.map?.d?.name || PAGE.map?.name || '?');
+        }
+
+        function pump() {
+            if (sending || !queue.length) return;
+            sending = true;
+            const wait = Math.max(0, lastSent + GAP_MS - Date.now());
+            setTimeout(() => {
+                sending = false;
+                const msg = queue.shift();
+                if (!msg || !state.eaEnabled || !inClan()) { queue.length = 0; return; }
+                try {
+                    if (typeof PAGE._g === 'function') {
+                        PAGE._g('chat&channel=clan', null, { c: msg });
+                        lastSent = Date.now();
+                        if (state.eaToast) showToast(msg);
+                    }
+                } catch (error) {
+                    console.warn('[darksad-addon] wróg na mapie:', error);
+                }
+                pump();
+            }, wait);
+        }
+
+        function report(id, o) {
+            if (!state.eaEnabled || !inClan()) return;
+            const now = Date.now();
+            if (reported[id] && now - reported[id] < REPEAT_MS) return;
+            reported[id] = now;
+            const who = `${o.nick || '?'}${o.lvl ? ` ${o.lvl}${o.prof || ''}` : ''}`;
+            if (queue.length < MAX_QUEUE) queue.push(`Wróg [${who}] na mapie - ${mapName()}`);
+            pump();
+        }
+
+        function onPacket(data) {
+            if (data.town) {
+                const id = String(data.town.id ?? '');
+                if (id !== mapId) {
+                    mapId = id;
+                    present = {};
+                    reported = {};
+                    queue.length = 0;
+                }
+            }
+            if (!data.other || typeof data.other !== 'object') return;
+            for (const id in data.other) {
+                const o = data.other[id];
+                if (!o) continue;
+                if (o.del) { delete present[id]; continue; }
+                // nowe pojawienie się gracza – pakiet z nickiem, a nie samo przesunięcie
+                if (o.nick === undefined || present[id]) continue;
+                present[id] = true;
+                if (isEnemy(o)) report(id, o);
+            }
+        }
+
+        function init() {
+            net.onAny(onPacket);
+        }
+
+        return { init, setEnabled(on) { if (!on) queue.length = 0; } };
     })();
 
     // ------------------------------------------------------------------
@@ -4925,6 +5216,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             desc: 'W tipie legendarnego przedmiotu dopisuje koszt ulepszeń: punkty ulepszenia na +1…+5, ich sumę od +0 do +5, koszt złota na +5 i potrzebną esencję – liczone z wymaganego poziomu przedmiotu.',
         },
         {
+            key: 'enemyalert',
+            stateKey: 'eaEnabled',
+            icon: '⚔️',
+            name: 'Wróg na mapie',
+            tag: 'Klan',
+            isNew: true,
+            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg [nick poziom profesja] na mapie - nazwa mapy”. Działa tylko, gdy jesteś w klanie. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
+            settings: () => `
+              <label class="pa-check"><input type="checkbox" data-pa-opt="eaToast"> Pokazuj też u mnie komunikat z wysłaną wiadomością</label>
+              <p class="pa-hint">Za wroga uznawany jest gracz z relacją „wróg” (wróg, wrogi klan, wroga frakcja) – tak jak czerwone kropki na Nowej mapie. Wiadomości idą co najmniej co 2 s, żeby gra ich nie blokowała.</p>`,
+        },
+        {
             key: 'activities',
             stateKey: 'acEnabled',
             icon: '📋',
@@ -4933,6 +5236,12 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             desc: 'W oknie przelogowywania nad każdą postacią z tego świata pokazuje kółko z liczbą aktywności do zrobienia (dostępnych i jeszcze nieukończonych), np. „Pokonaj kolosa”. Po najechaniu na postać – lista tych aktywności. Dane z panelu aktywności gry, odświeżane przy otwarciu okna.',
             settings: () => `
               <label class="pa-check"><input type="checkbox" data-pa-opt="acShowDone"> Pokazuj zielony ✓, gdy postać ma wszystko zrobione</label>
+              <div class="pa-sub">Kolejność postaci w oknie przelogowywania</div>
+              <div class="pa-lcscope">
+                <button type="button" data-pa-acsort="none" title="Kolejność taka jak w grze">Jak w grze</button>
+                <button type="button" data-pa-acsort="desc" title="Najwyższy poziom pierwszy">Poziom malejąco</button>
+                <button type="button" data-pa-acsort="asc" title="Najniższy poziom pierwszy">Poziom rosnąco</button>
+              </div>
               <p class="pa-hint">Gra pokazuje aktywności tylko postaci z aktualnego świata. Postacie z innych światów dostaną kółko, gdy wejdziesz na ich świat (dane z dzisiaj są zapamiętywane).</p>`,
         },
         {
@@ -5251,6 +5560,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         whoResize.renderSettings(modal);
         ptTheme.renderSettings(modal);
         lootChance.renderSettings(modal);
+        activities.renderSettings(modal);
 
         // notyfikator
         const notifier = root.querySelector('[data-pa-notifier]');
@@ -5681,6 +5991,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             lootTime.setEnabled(on);
             showToast(on ? 'Godzina zdobycia włączona' : 'Godzina zdobycia wyłączona');
         },
+        enemyalert(on) {
+            enemyAlert.setEnabled(on);
+            showToast(on ? 'Wróg na mapie włączony' : 'Wróg na mapie wyłączony');
+        },
         lootchance(on) {
             lootChance.setEnabled(on);
             showToast(on ? 'Szansa na łup włączona' : 'Szansa na łup wyłączona');
@@ -5801,6 +6115,13 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 event.preventDefault();
                 const track = lcfxScroll.parentElement.querySelector('[data-pa-lcfx-track]');
                 if (track) track.scrollBy({ left: Number(lcfxScroll.getAttribute('data-pa-lcfx-scroll')) * track.clientWidth * 0.8, behavior: 'smooth' });
+                return;
+            }
+            const acSortBtn = event.target.closest('[data-pa-acsort]');
+            if (acSortBtn) {
+                event.preventDefault();
+                activities.setSort(acSortBtn.getAttribute('data-pa-acsort'));
+                syncUi(root);
                 return;
             }
             const lcScope = event.target.closest('[data-pa-lcfx-scope]');
@@ -10608,6 +10929,7 @@ function observeChatLinks() {
             upgradeCosts.init();
             lootTime.init();
             activities.init();
+            enemyAlert.init();
             syncUi(root);
 
             // motyw gry ładuje się chwilę po starcie – dopasuj kolor jeszcze raz
