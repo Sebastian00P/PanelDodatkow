@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.4';
+    const PANEL_VERSION = '6.1.5';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -2849,7 +2849,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             zoons: { n: 'Versus Zoons', edge: '#c8a05a', em: 'gears', ec: '#d9b36a', p: [{ t: 'rise', s: 'smoke', c: ['#8a8a8a', '#b0b0b0'], n: 14 }] },
             lowczyni: { n: 'Łowczyni Wspomnień', edge: '#6fd4ff', em: 'moon', ec: '#bfeaff', p: [{ t: 'float', s: 'wisp', c: ['#6fd4ff', '#bfeaff', '#9b8cff'], n: 28 }, { t: 'float', s: 'shard', c: ['#cfefff', '#8fb8ff'], n: 18 }] },
             przyzywacz: { n: 'Przyzywacz Demonów', edge: '#ff2a00', em: 'pentacandle', ec: '#ff3b1f', p: [{ t: 'fall', s: 'ash', c: ['#555555', '#888888', '#ff5a2a'], n: 40 }] },
-            magua: { n: 'Maddok Magua', edge: '#7dff3a', em: 'poison', ec: '#a6ff3d', p: [{ t: 'fall', s: 'tox', c: ['#7dff3a', '#a6ff3d'], n: 26 }, { t: 'rise', s: 'bubble', c: ['#3dff7a', '#a6ff3d'], n: 24 }, { t: 'rise', s: 'smoke', c: ['#1f8a3f', '#2faa4a'], n: 16 }] },
+            magua: { n: 'Maddok Magua', edge: '#7dff3a', em: 'poison', ec: '#a6ff3d', p: [{ t: 'rise', s: 'vbubble', c: ['#7dff3a', '#a6ff3d'], n: 26 }, { t: 'rise', s: 'vbubble', c: ['#3dff7a', '#a6ff3d'], n: 22 }, { t: 'rise', s: 'smoke', c: ['#1f8a3f', '#2faa4a'], n: 16 }] },
             tezca: { n: 'Tezcatlipoca', edge: '#c0001a', em: 'slashes', ec: '#ff1a33', p: [{ t: 'fall', s: 'drop', c: ['#b3001b', '#ff2240'], n: 22 }] },
             barbatos: { n: 'Barbatos', edge: '#ff4a10', em: 'cornerfire', ec: '#ff7a1f', p: [] },
             tanroth: { n: 'Tanroth', edge: '#9fe6ff', em: 'icerain', ec: '#dff7ff', p: [] },
@@ -3568,6 +3568,35 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                         x.globalAlpha = 0.7; x.lineWidth = 1.2;
                         x.beginPath(); x.arc(0, 0, 4 * z, 0, 7); x.stroke();
                         break;
+                    case 'vbubble': {
+                        // bąbel jadu: półprzezroczysty środek, jasna obwódka, odblask; lekko się kołysze
+                        x.rotate(-p.a);
+                        x.translate(Math.sin(p.ph * 1.7) * 2.2 * z, 0);
+                        const br = (3 + (p.z % 0.5) * 6) * z;
+                        if (p.pop) {
+                            // pęknięcie: rozchodzący się krąg i kilka kropelek
+                            const q = p.pop;
+                            x.globalAlpha = 0.9 * (1 - q);
+                            x.strokeStyle = 'rgba(220,255,160,.9)';
+                            x.lineWidth = 1.2;
+                            x.beginPath(); x.arc(0, 0, br * (1 + q * 1.3), 0, 7); x.stroke();
+                            x.fillStyle = 'rgba(190,255,110,.9)';
+                            for (let i = 0; i < 6; i++) {
+                                const a = i * 1.047 + p.ph;
+                                const d = br * (0.9 + q * 1.8);
+                                x.beginPath(); x.arc(Math.cos(a) * d, Math.sin(a) * d + q * q * 6 * z, Math.max(0.6, 1.4 * z * (1 - q)), 0, 7); x.fill();
+                            }
+                            break;
+                        }
+                        x.globalAlpha = 0.85 * Math.min(1, (p.life ?? 1) * 3);
+                        x.fillStyle = 'rgba(160,240,80,.22)';
+                        x.strokeStyle = 'rgba(210,255,150,.8)';
+                        x.lineWidth = 1.2;
+                        x.beginPath(); x.arc(0, 0, br, 0, 7); x.fill(); x.stroke();
+                        x.fillStyle = 'rgba(255,255,230,.75)';
+                        x.beginPath(); x.arc(-br * 0.35, -br * 0.35, br * 0.24, 0, 7); x.fill();
+                        break;
+                    }
                     case 'snow':
                         x.globalAlpha = 0.6; x.lineWidth = 0.8;
                         for (let i = 0; i < 3; i++) { x.rotate(Math.PI / 3); x.beginPath(); x.moveTo(-2.5 * z, 0); x.lineTo(2.5 * z, 0); x.stroke(); }
@@ -3582,6 +3611,15 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 x.restore();
             }
             function step(p) {
+                // bąbel jadu: losowo pęka (krótka animacja), potem wraca od dołu
+                if (p.s === 'vbubble') {
+                    if (p.pop) {
+                        p.pop += 0.07;
+                        if (p.pop >= 1) Object.assign(p, mk(p.cfg, false), { pop: 0 });
+                        return;
+                    }
+                    if (p.y < H * 0.92 && Math.random() < 0.0045) { p.pop = 0.001; return; }
+                }
                 p.x += p.vx;
                 p.y += p.vy;
                 p.a += p.va;
@@ -4808,6 +4846,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         let present = {};                 // gracze widoczni teraz na mapie (id -> true)
         let reported = {};                // id -> czas ostatniej wiadomości (na tej mapie)
         let mapId = null;
+        let mapPvp = null;                // tryb PvP mapy z pakietu „town”: 0 bez PvP (zielona), 1 za zgodą (pomarańczowa), 2 PvP (czerwona)
         const queue = [];
         let sending = false;
         let lastSent = 0;
@@ -4825,6 +4864,14 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         function mapName() {
             return String(PAGE.Engine?.map?.d?.name || PAGE.map?.name || '?');
         }
+        // działamy tylko na mapach pomarańczowych (PvP za zgodą) i czerwonych (PvP);
+        // zielone (bez PvP), instancje i arena są pomijane
+        function pvpAllowed() {
+            const v = mapPvp ?? PAGE.Engine?.map?.d?.pvp ?? PAGE.map?.pvp;
+            if (v === undefined || v === null || v === '') return true;   // brak danych – nie blokujemy
+            const n = Number(v);
+            return n === 1 || n === 2;
+        }
 
         function pump() {
             if (sending || !queue.length) return;
@@ -4833,7 +4880,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             setTimeout(() => {
                 sending = false;
                 const msg = queue.shift();
-                if (!msg || !state.eaEnabled || !inClan()) { queue.length = 0; return; }
+                if (!msg || !state.eaEnabled || !inClan() || !pvpAllowed()) { queue.length = 0; return; }
                 try {
                     if (typeof PAGE._g === 'function') {
                         PAGE._g('chat&channel=clan', null, { c: msg });
@@ -4848,7 +4895,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         }
 
         function report(id, o) {
-            if (!state.eaEnabled || !inClan()) return;
+            if (!state.eaEnabled || !inClan() || !pvpAllowed()) return;
             const now = Date.now();
             if (reported[id] && now - reported[id] < REPEAT_MS) return;
             reported[id] = now;
@@ -4859,13 +4906,15 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
         function onPacket(data) {
             if (data.town) {
-                const id = String(data.town.id ?? '');
+                const id = data.town.id !== undefined ? String(data.town.id) : mapId;
                 if (id !== mapId) {
                     mapId = id;
+                    mapPvp = null;
                     present = {};
                     reported = {};
                     queue.length = 0;
                 }
+                if (data.town.pvp !== undefined) mapPvp = data.town.pvp;
             }
             if (!data.other || typeof data.other !== 'object') return;
             for (const id in data.other) {
@@ -5234,7 +5283,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             name: 'Wróg na mapie',
             tag: 'Klan',
             isNew: true,
-            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg nick poziom+profesja na mapie - nazwa mapy”. Działa tylko, gdy jesteś w klanie. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
+            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg nick poziom+profesja na mapie - nazwa mapy”. Działa tylko, gdy jesteś w klanie, i tylko na mapach z PvP (czerwonych i pomarańczowych) – na zielonych milczy. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
             settings: () => `
               <label class="pa-check"><input type="checkbox" data-pa-opt="eaToast"> Pokazuj też u mnie komunikat z wysłaną wiadomością</label>
               <p class="pa-hint">Za wroga uznawany jest gracz z relacją „wróg” (wróg, wrogi klan, wroga frakcja) – tak jak czerwone kropki na Nowej mapie. Wiadomości idą co najmniej co 2 s, żeby gra ich nie blokowała.</p>`,
