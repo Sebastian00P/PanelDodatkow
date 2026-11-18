@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.8';
+    const PANEL_VERSION = '6.1.9';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -85,7 +85,7 @@
         // wróg na mapie
         eaEnabled: false,
         eaSound: false,              // powiadomienie dźwiękowe
-        eaSoundId: 'ping',
+        eaSoundId: 'sword',
         eaSoundVol: 70,
         eaToast: true,               // sortowanie postaci w oknie przelogowywania: none / desc / asc
         lcPulse: true,
@@ -4928,9 +4928,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
         // ---------- dźwięk (syntezowany w przeglądarce, bez plików) ----------
         const SOUNDS = [
-            { id: 'ping', name: 'Ping (jak na minimapie)' },
+            { id: 'sword', name: 'Dobycie miecza' },
+            { id: 'ping', name: 'Ping' },
             { id: 'drop', name: 'Kropla' },
-            { id: 'tok', name: 'Stuk' },
         ];
         let audioCtx = null;
         let lastSound = 0;
@@ -4948,8 +4948,8 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 return null;
             }
         }
-        // jeden ton: typ fali, częstotliwość (albo [od, do]), start, długość, głośność
-        function tone(ctx, out, type, freq, start, dur, gain) {
+        // jeden ton: typ fali, częstotliwość (albo [od, do]), start, długość, głośność, narastanie
+        function tone(ctx, out, type, freq, start, dur, gain, attack = 0.008) {
             const osc = ctx.createOscillator();
             const g = ctx.createGain();
             osc.type = type;
@@ -4961,11 +4961,35 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 osc.frequency.setValueAtTime(freq, t0);
             }
             g.gain.setValueAtTime(0.0001, t0);
-            g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+            g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
             g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
             osc.connect(g).connect(out);
             osc.start(t0);
             osc.stop(t0 + dur + 0.05);
+        }
+        // szum przez filtr pasmowy, którego częstotliwość przesuwa się [od, do] – świst, furkot, iskry
+        let noiseBuf = null;
+        function noise(ctx, out, start, dur, gain, f0, f1, q, attack = 0.01) {
+            if (!noiseBuf) {
+                noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1.5), ctx.sampleRate);
+                const d = noiseBuf.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            }
+            const src = ctx.createBufferSource();
+            src.buffer = noiseBuf;
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.Q.value = q;
+            const t0 = ctx.currentTime + start;
+            bp.frequency.setValueAtTime(f0, t0);
+            bp.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            src.connect(bp).connect(g).connect(out);
+            src.start(t0);
+            src.stop(t0 + dur + 0.05);
         }
         function playSound(id) {
             const ctx = getCtx();
@@ -4973,10 +4997,18 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             const out = ctx.createGain();
             out.gain.value = Math.max(0.05, Math.min(1, (Number(state.eaSoundVol) || 70) / 100));
             out.connect(ctx.destination);
-            // jeden krótki ton (ok. 0,1–0,2 s), cichy start i szybkie wygaszenie
-            if (id === 'drop') tone(ctx, out, 'sine', [1400, 700], 0, 0.12, 0.45);
-            else if (id === 'tok') tone(ctx, out, 'triangle', 520, 0, 0.08, 0.6);
-            else tone(ctx, out, 'sine', 988, 0, 0.18, 0.4);
+            if (id === 'ping') {
+                // krótki, czysty ton
+                tone(ctx, out, 'sine', 988, 0, 0.18, 0.4);
+            } else if (id === 'drop') {
+                // krótkie „blup” opadające w dół
+                tone(ctx, out, 'sine', [1400, 700], 0, 0.12, 0.45);
+            } else {
+                // dobycie miecza: dłuższy świst metalu + dzwoniące wysokie alikwoty
+                noise(ctx, out, 0, 0.5, 0.45, 7500, 2200, 6);
+                [[2637, 0.12, 1.1], [3520, 0.08, 0.9], [4699, 0.05, 0.7]]
+                    .forEach(([f, g, d]) => tone(ctx, out, 'sine', f, 0.05, d, g, 0.004));
+            }
         }
         function soundAlert() {
             if (!state.eaSound) return;
