@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.7';
+    const PANEL_VERSION = '6.1.8';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -85,7 +85,7 @@
         // wróg na mapie
         eaEnabled: false,
         eaSound: false,              // powiadomienie dźwiękowe
-        eaSoundId: 'bell',
+        eaSoundId: 'ping',
         eaSoundVol: 70,
         eaToast: true,               // sortowanie postaci w oknie przelogowywania: none / desc / asc
         lcPulse: true,
@@ -4928,9 +4928,9 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
 
         // ---------- dźwięk (syntezowany w przeglądarce, bez plików) ----------
         const SOUNDS = [
-            { id: 'bell', name: 'Dzwonek' },
-            { id: 'alarm', name: 'Alarm' },
-            { id: 'horn', name: 'Róg bojowy' },
+            { id: 'ping', name: 'Ping (jak na minimapie)' },
+            { id: 'drop', name: 'Kropla' },
+            { id: 'tok', name: 'Stuk' },
         ];
         let audioCtx = null;
         let lastSound = 0;
@@ -4973,23 +4973,10 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             const out = ctx.createGain();
             out.gain.value = Math.max(0.05, Math.min(1, (Number(state.eaSoundVol) || 70) / 100));
             out.connect(ctx.destination);
-            if (id === 'alarm') {
-                for (let i = 0; i < 3; i++) {
-                    tone(ctx, out, 'square', 740, i * 0.32, 0.14, 0.22);
-                    tone(ctx, out, 'square', 990, i * 0.32 + 0.15, 0.14, 0.22);
-                }
-            } else if (id === 'horn') {
-                const lp = ctx.createBiquadFilter();
-                lp.type = 'lowpass';
-                lp.frequency.value = 1400;
-                lp.connect(out);
-                tone(ctx, lp, 'sawtooth', [196, 262], 0, 0.55, 0.45);
-                tone(ctx, lp, 'sawtooth', [262, 330], 0.5, 0.75, 0.45);
-            } else {
-                tone(ctx, out, 'sine', 1318, 0, 0.9, 0.5);
-                tone(ctx, out, 'sine', 1975, 0, 0.6, 0.18);
-                tone(ctx, out, 'sine', 1046, 0.22, 1.1, 0.45);
-            }
+            // jeden krótki ton (ok. 0,1–0,2 s), cichy start i szybkie wygaszenie
+            if (id === 'drop') tone(ctx, out, 'sine', [1400, 700], 0, 0.12, 0.45);
+            else if (id === 'tok') tone(ctx, out, 'triangle', 520, 0, 0.08, 0.6);
+            else tone(ctx, out, 'sine', 988, 0, 0.18, 0.4);
         }
         function soundAlert() {
             if (!state.eaSound) return;
