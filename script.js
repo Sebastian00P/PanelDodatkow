@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    const PANEL_VERSION = '6.1.5';
+    const PANEL_VERSION = '6.1.6';
     const ADDON_ID = 'darksad-addon-menu';
     const STORAGE_KEY = 'darksad-addon-settings-v3';
 
@@ -61,6 +61,7 @@
         mmGwAvail: false,             // tylko przejścia, do których da się dojść
         mmPos: null,
         mmSideHidden: false,
+        mmColors: {},                 // własne kolory elementów Nowej mapy (rodzaj -> #rrggbb)
         themeAccent: '',              // '' = auto (z motywu gry)
         themeGlass: true,
         // motyw gry (BETA)
@@ -83,6 +84,9 @@
         acSort: 'none',
         // wróg na mapie
         eaEnabled: false,
+        eaSound: false,              // powiadomienie dźwiękowe
+        eaSoundId: 'bell',
+        eaSoundVol: 70,
         eaToast: true,               // sortowanie postaci w oknie przelogowywania: none / desc / asc
         lcPulse: true,
         lcFx: 'rays',                 // rodzaj efektu legendy
@@ -108,10 +112,10 @@
         'titanEnabled', 'titanTooltips', 'titanWindow', 'titanHighlightOwn', 'titanPosition',
         'berserkEnabled', 'berserkRozwinOffset', 'berserkFreePos', 'whoResizeEnabled', 'whoSize',
         'buildsEnabled', 'buildsPosition', 'buildsBox', 'buildsCompact', 'buildsHeroCfg', 'buildsProf', 'buildsAI', 'buildsAIRange', 'buildsAIEnemiesOnly', 'buildsCache',
-        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos', 'mmSideHidden', 'mmFog',
+        'mmEnabled', 'mmSize', 'mmOpacity', 'mmHotkey', 'mmShowOthers', 'mmShowMobs', 'mmShowNpcs', 'mmShowSpawns', 'mmSpawnRange', 'mmChaseAttack', 'mmGwAvail', 'mmPos', 'mmSideHidden', 'mmFog', 'mmColors',
         'themeAccent', 'themeGlass',
         'ptEnabled', 'ptPreset', 'ptCustom', 'ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips',
-        'lcEnabled', 'lcPulse', 'lcFx', 'lcFxScope', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone', 'acSort', 'eaEnabled', 'eaToast',
+        'lcEnabled', 'lcPulse', 'lcFx', 'lcFxScope', 'ucEnabled', 'ltEnabled', 'acEnabled', 'acShowDone', 'acSort', 'eaEnabled', 'eaToast', 'eaSound', 'eaSoundId', 'eaSoundVol',
     ];
 
     function loadSettings() {
@@ -127,6 +131,7 @@
             state.themeGlass = saved.themeGlass !== false;
             ['ptShWin', 'ptShBtn', 'ptShFrame', 'ptShTips'].forEach((k) => { state[k] = saved[k] !== false; });
             if (!state.ptCustom || typeof state.ptCustom !== 'object') state.ptCustom = {};
+            if (!state.mmColors || typeof state.mmColors !== 'object' || Array.isArray(state.mmColors)) state.mmColors = {};
             state.lcPulse = saved.lcPulse !== false;
             state.mmShowOthers = saved.mmShowOthers !== false;
             state.mmShowMobs = saved.mmShowMobs !== false;
@@ -736,6 +741,8 @@ div[data-chat-message-id] a {
       outline: none;
     }
     .pa-card-settings input:focus, .pa-card-settings select:focus { border-color: var(--pa-accent); }
+    .pa-card-settings input[type="range"] { width: 100%; margin: 4px 0; accent-color: var(--pa-accent); cursor: pointer; }
+    .pa-card-settings select option { background: #14161d; color: var(--pa-text); }
     .pa-check { display: flex; align-items: center; gap: 7px; margin: 5px 0; cursor: pointer; color: var(--pa-text); }
     .pa-check input { accent-color: var(--pa-accent); margin: 0; }
     .pa-btn {
@@ -1410,8 +1417,8 @@ div[data-chat-message-id] a {
     }
     .pa-mm-obj.pa-mm-pulse::after { animation-delay: .8s; }
     @keyframes pa-mm-ring { 0% { transform: scale(1); opacity: .95; } 100% { transform: scale(3.4); opacity: 0; } }
-    .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid #c6ba35; box-shadow: none; }
-    .pa-mm-obj.pa-mm-respEvent { border-color: #00bfff; }
+    .pa-mm-obj.pa-mm-resp, .pa-mm-obj.pa-mm-respEvent { background: transparent !important; border: 2px solid var(--mm-c-resp, #c6ba35); box-shadow: none; }
+    .pa-mm-obj.pa-mm-respEvent { border-color: var(--mm-c-respEvent, #00bfff); }
     .pa-mm-obj.pa-mm-resp.pa-mm-near {
       border: 3px solid #fff36b;
       background: rgba(255, 236, 80, .45) !important;
@@ -1420,10 +1427,10 @@ div[data-chat-message-id] a {
     }
     /* resp, przy którym stoi inny gracz – wygląda jak heros (może tam być) */
     .pa-mm-obj.pa-mm-resp.pa-mm-suspect, .pa-mm-obj.pa-mm-respEvent.pa-mm-suspect {
-      border: 0 !important; background: #ffd23f !important; color: #ffd23f !important;
-      box-shadow: 0 0 0 1.5px #000, 0 0 10px 3px rgba(255,210,63,.75); z-index: 160 !important;
+      border: 0 !important; background: var(--mm-c-heros, #ffd23f) !important; color: var(--mm-c-heros, #ffd23f) !important;
+      box-shadow: 0 0 0 1.5px #000, 0 0 10px 3px var(--mm-c-heros, #ffd23f); z-index: 160 !important;
     }
-    .pa-mm-obj.pa-mm-respEvent.pa-mm-suspect { background: #ff4dd2 !important; color: #ff4dd2 !important; box-shadow: 0 0 0 1.5px #000, 0 0 10px 3px rgba(255,77,210,.75); }
+    .pa-mm-obj.pa-mm-respEvent.pa-mm-suspect { background: var(--mm-c-herosEvent, #ff4dd2) !important; color: var(--mm-c-herosEvent, #ff4dd2) !important; box-shadow: 0 0 0 1.5px #000, 0 0 10px 3px var(--mm-c-herosEvent, #ff4dd2); }
     .pa-mm-obj.pa-mm-marker { animation: pa-mm-flash .5s steps(2) infinite; border-radius: 3px; }
     @keyframes pa-mm-flash { 50% { filter: invert(1); } }
     @keyframes pa-mm-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px 6px currentColor; filter: brightness(1.2); } }
@@ -1433,8 +1440,8 @@ div[data-chat-message-id] a {
       left: 0;
       top: 0;
       border-radius: 3px;
-      background: #ff2a2a;
-      box-shadow: 0 0 0 1.5px #fff, 0 0 8px rgba(255,42,42,.9);
+      background: var(--mm-c-hero, #ff2a2a);
+      box-shadow: 0 0 0 1.5px #fff, 0 0 8px var(--mm-c-hero, #ff2a2a);
       pointer-events: none;
       will-change: transform;
     }
@@ -1503,6 +1510,31 @@ div[data-chat-message-id] a {
     .pa-mm-sidetoggle.pa-mm-st-hidden .pa-mm-st-arrow { transform: none; }
     .pa-mm-sidetoggle.pa-mm-st-hidden .pa-mm-st-col { opacity: .35; }
     .pa-mm-tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
+    .pa-mm-col { position: relative; }
+    .pa-mm-gear.pa-mm-gear-on { border-color: var(--pa-accent); color: var(--pa-accent); }
+    .pa-mm-cfg {
+      display: none; position: absolute; right: 6px; bottom: 36px; z-index: 400;
+      width: 250px; max-height: calc(100% - 70px); overflow-y: auto; overscroll-behavior: contain;
+      padding: 10px; box-sizing: border-box;
+      border: 1px solid var(--pa-border-strong); border-radius: 10px;
+      background: rgba(12, 14, 20, .96); box-shadow: var(--pa-shadow);
+      font: 11px var(--pa-font); color: var(--pa-text); user-select: none;
+    }
+    .pa-mm-cfg.pa-open { display: block; animation: pa-pop .14s ease-out; }
+    .pa-mm-cfg-title { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
+    .pa-mm-cfg-title button { margin-left: auto; }
+    .pa-mm-cfg-sub { margin: 8px 0 4px; color: var(--pa-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+    .pa-mm-cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; }
+    .pa-mm-cfg-row { display: flex; align-items: center; gap: 6px; min-width: 0; cursor: pointer; padding: 2px 3px; border-radius: 5px; }
+    .pa-mm-cfg-row:hover { background: rgba(255,255,255,.06); }
+    .pa-mm-cfg-row span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pa-mm-cfg-row input[type=color] { flex: 0 0 auto; width: 20px; height: 18px; padding: 0; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; background: none; cursor: pointer; }
+    .pa-mm-cfg-row input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+    .pa-mm-cfg-row input[type=color]::-webkit-color-swatch { border: 0; border-radius: 3px; }
+    .pa-mm-cfg-row.pa-mm-cfg-changed span { color: var(--pa-accent); }
+    .pa-mm-cfg-foot { display: flex; gap: 6px; margin-top: 10px; }
+    .pa-mm-cfg-foot button { flex: 1 1 0; height: 24px; border: 1px solid var(--pa-border); border-radius: 7px; background: var(--pa-surface); color: var(--pa-text); font: 11px var(--pa-font); cursor: pointer; }
+    .pa-mm-cfg-foot button:hover { border-color: var(--pa-accent); }
     .pa-mm-brand { font-weight: 700; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--pa-accent); }
     .pa-mm-sep { display: none; }
     .pa-mm-name { flex: 1 1 60px; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--pa-muted); }
@@ -4894,11 +4926,88 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             }, wait);
         }
 
+        // ---------- dźwięk (syntezowany w przeglądarce, bez plików) ----------
+        const SOUNDS = [
+            { id: 'bell', name: 'Dzwonek' },
+            { id: 'alarm', name: 'Alarm' },
+            { id: 'horn', name: 'Róg bojowy' },
+        ];
+        let audioCtx = null;
+        let lastSound = 0;
+        function soundId() {
+            return SOUNDS.some((x) => x.id === state.eaSoundId) ? state.eaSoundId : SOUNDS[0].id;
+        }
+        function getCtx() {
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext || PAGE.AudioContext;
+                if (!AC) return null;
+                if (!audioCtx) audioCtx = new AC();
+                if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+                return audioCtx;
+            } catch (_) {
+                return null;
+            }
+        }
+        // jeden ton: typ fali, częstotliwość (albo [od, do]), start, długość, głośność
+        function tone(ctx, out, type, freq, start, dur, gain) {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = type;
+            const t0 = ctx.currentTime + start;
+            if (Array.isArray(freq)) {
+                osc.frequency.setValueAtTime(freq[0], t0);
+                osc.frequency.exponentialRampToValueAtTime(freq[1], t0 + dur * 0.6);
+            } else {
+                osc.frequency.setValueAtTime(freq, t0);
+            }
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            osc.connect(g).connect(out);
+            osc.start(t0);
+            osc.stop(t0 + dur + 0.05);
+        }
+        function playSound(id) {
+            const ctx = getCtx();
+            if (!ctx) return;
+            const out = ctx.createGain();
+            out.gain.value = Math.max(0.05, Math.min(1, (Number(state.eaSoundVol) || 70) / 100));
+            out.connect(ctx.destination);
+            if (id === 'alarm') {
+                for (let i = 0; i < 3; i++) {
+                    tone(ctx, out, 'square', 740, i * 0.32, 0.14, 0.22);
+                    tone(ctx, out, 'square', 990, i * 0.32 + 0.15, 0.14, 0.22);
+                }
+            } else if (id === 'horn') {
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.value = 1400;
+                lp.connect(out);
+                tone(ctx, lp, 'sawtooth', [196, 262], 0, 0.55, 0.45);
+                tone(ctx, lp, 'sawtooth', [262, 330], 0.5, 0.75, 0.45);
+            } else {
+                tone(ctx, out, 'sine', 1318, 0, 0.9, 0.5);
+                tone(ctx, out, 'sine', 1975, 0, 0.6, 0.18);
+                tone(ctx, out, 'sine', 1046, 0.22, 1.1, 0.45);
+            }
+        }
+        function soundAlert() {
+            if (!state.eaSound) return;
+            const now = Date.now();
+            if (now - lastSound < 1500) return;      // kilku wrogów naraz = jeden dźwięk
+            lastSound = now;
+            playSound(soundId());
+        }
+
         function report(id, o) {
-            if (!state.eaEnabled || !inClan() || !pvpAllowed()) return;
+            if (!state.eaEnabled || !pvpAllowed()) return;
+            const clan = inClan();
+            if (!clan && !state.eaSound) return;
             const now = Date.now();
             if (reported[id] && now - reported[id] < REPEAT_MS) return;
             reported[id] = now;
+            soundAlert();
+            if (!clan) return;
             const who = `${o.nick || '?'}${o.lvl ? ` ${o.lvl}${o.prof || ''}` : ''}`;
             if (queue.length < MAX_QUEUE) queue.push(`Wróg ${who} na mapie - ${mapName()}`);
             pump();
@@ -4932,7 +5041,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             net.onAny(onPacket);
         }
 
-        return { init, setEnabled(on) { if (!on) queue.length = 0; } };
+        return { init, setEnabled(on) { if (!on) queue.length = 0; }, SOUNDS, soundId, playSound };
     })();
 
     // ------------------------------------------------------------------
@@ -5152,7 +5261,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmShowSpawns"> Pokazuj respy herosów (kółka z obwódką)</label>
               <label class="pa-check"><input type="checkbox" data-pa-opt="mmFog"> Mgła wojny – ramka z zasięgiem widzenia postaci</label>
               <div class="pa-row"><label class="pa-field"><span>Zasięg wykrywania respu (kratki) – sprawdzony resp zostaje podświetlony</span><input type="number" min="1" max="60" step="1" data-pa-opt-num="mmSpawnRange"></label></div>
-              <p class="pa-hint">Kolory: <b style="color:#ff2a2a">■</b> ty · <b style="color:#3a3a3a">●</b> moby · <b style="color:#00ffe9">●</b> elity · <b style="color:#039689">●</b> elity II · <b style="color:#ff9f1a">●</b> elity III (tytani, herosi i E3 pulsują) · <b style="color:#ffd23f">●</b> herosi · <b style="color:#ff4dd2">●</b> herosi eventowi · <b style="color:#b6ff1a">●</b> tytani · <b style="color:#ddff00">●</b> NPC · <b style="color:#08ad00">●</b> klan/znajomi · <b style="color:#b45cff">●</b> drużyna · <b style="color:#ff3b3b">●</b> wrogowie i obcy gracze · <b style="color:#fff;text-shadow:0 0 2px #000">●</b> groby · <b style="color:#2b3cff">■</b> przejścia</p>
+              <p class="pa-hint">Kolory elementów (moby, elity, herosi, gracze, przejścia, respy…) zmienisz trybikiem ⚙ w prawym dolnym rogu Nowej mapy. Tytani, herosi i E3 pulsują.</p>
               <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="mm-open">Otwórz Nową mapę</button><button type="button" class="pa-btn" data-pa-action="mm-reset-pos">Przywróć pozycję mapy</button></div>
               <p class="pa-hint">Mapę przesuwasz, łapiąc za jej górny pasek z nazwą.</p>`,
         },
@@ -5283,9 +5392,16 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
             name: 'Wróg na mapie',
             tag: 'Klan',
             isNew: true,
-            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg nick poziom+profesja na mapie - nazwa mapy”. Działa tylko, gdy jesteś w klanie, i tylko na mapach z PvP (czerwonych i pomarańczowych) – na zielonych milczy. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
+            desc: 'Gdy na twojej mapie pojawi się wróg, wysyła na czat klanowy wiadomość „Wróg nick poziom+profesja na mapie - nazwa mapy”. Wiadomość idzie tylko, gdy jesteś w klanie; opcjonalnie gra też dźwięk. Działa tylko na mapach z PvP (czerwonych i pomarańczowych) – na zielonych milczy. O tym samym graczu na tej samej mapie pisze najwyżej raz na minutę, a po zmianie mapy liczy od nowa.',
             settings: () => `
               <label class="pa-check"><input type="checkbox" data-pa-opt="eaToast"> Pokazuj też u mnie komunikat z wysłaną wiadomością</label>
+              <label class="pa-check"><input type="checkbox" data-pa-opt="eaSound"> Powiadomienie dźwiękowe, gdy na mapie pojawi się wróg</label>
+              <div class="pa-row">
+                <label class="pa-field"><span>Dźwięk</span><select data-pa-ea-sound>${enemyAlert.SOUNDS.map((x) => `<option value="${x.id}">${x.name}</option>`).join('')}</select></label>
+                <label class="pa-field"><span>Głośność <b data-pa-ea-vol-val></b></span><input type="range" min="5" max="100" step="5" data-pa-ea-vol></label>
+              </div>
+              <div class="pa-row"><button type="button" class="pa-btn" data-pa-action="ea-test">▶ Odtwórz dźwięk</button></div>
+              <p class="pa-hint">Dźwięk gra u ciebie także wtedy, gdy nie jesteś w klanie (wiadomość na czat klanowy idzie tylko z klanem). Tak samo jak wiadomości – tylko na mapach z PvP i najwyżej raz na minutę o tym samym graczu.</p>
               <p class="pa-hint">Za wroga uznawany jest gracz z relacją „wróg” (wróg, wrogi klan, wroga frakcja) – tak jak czerwone kropki na Nowej mapie. Wiadomości idą co najmniej co 2 s, żeby gra ich nie blokowała.</p>`,
         },
         {
@@ -5597,6 +5713,12 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         });
         modal.querySelectorAll('[data-pa-opt-num]').forEach((input) => {
             if (document.activeElement !== input) input.value = state[input.getAttribute('data-pa-opt-num')];
+        });
+        modal.querySelectorAll('[data-pa-ea-sound]').forEach((sel) => { sel.value = enemyAlert.soundId(); });
+        modal.querySelectorAll('[data-pa-ea-vol]').forEach((r) => {
+            if (document.activeElement !== r) r.value = state.eaSoundVol;
+            const out = r.closest('.pa-field')?.querySelector('[data-pa-ea-vol-val]');
+            if (out) out.textContent = `${state.eaSoundVol}%`;
         });
 
         // huge message
@@ -6241,6 +6363,7 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 if (name === 'berserk-reset-pos') berserk.resetPosition();
                 if (name === 'who-reset') whoResize.reset();
                 if (name === 'mm-reset-pos') miniMap.resetPosition();
+                if (name === 'ea-test') enemyAlert.playSound(enemyAlert.soundId());
                 if (name === 'lc-test') {
                     if (!state.lcEnabled) showToast('Najpierw włącz dodatek „Szansa na łup”');
                     else if (!state.lcPulse) showToast('Najpierw zaznacz „Efekt legendy”');
@@ -6271,6 +6394,11 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
         // --- motyw: kolory własnej palety (podgląd na żywo) ---
         modal.addEventListener('input', (event) => {
             const input = event.target;
+            if (input.matches('[data-pa-ea-vol]')) {
+                const out = input.closest('.pa-field')?.querySelector('[data-pa-ea-vol-val]');
+                if (out) out.textContent = `${input.value}%`;
+                return;
+            }
             if (!input.matches('[data-pa-pt-color]')) return;
             ptTheme.setCustomColor(input.getAttribute('data-pa-pt-color'), input.value);
             ptTheme.renderSettings(modal);
@@ -6301,6 +6429,21 @@ body.pa-theme .cll-modal #cll-message-send{color:var(--pt-text-yellow);}
                 saveSettings();
                 if (key.startsWith('builds')) builds.render();
                 if (key.startsWith('mm')) miniMap.refresh();
+                return;
+            }
+
+            if (input.matches('[data-pa-ea-sound]')) {
+                state.eaSoundId = input.value;
+                saveSettings();
+                enemyAlert.playSound(input.value);
+                return;
+            }
+
+            if (input.matches('[data-pa-ea-vol]')) {
+                state.eaSoundVol = Math.max(5, Math.min(100, Number(input.value) || 70));
+                saveSettings();
+                syncUi();
+                enemyAlert.playSound(enemyAlert.soundId());
                 return;
             }
 
@@ -9146,12 +9289,25 @@ function observeChatLinks() {
     //  Dane zbierane cały czas z pakietów serwera, rysowane gdy otwarta.
     // =================================================================
     const miniMap = (function () {
-        const COLORS = {
+        const DEFAULT_COLORS = {
             hero: '#ff2a2a', other: '#ff3b3b', grave: '#ffffff', friend: '#08ad00', clan: '#08ad00', ally: '#9eff91', enemy: '#ff3b3b',
             npc: '#ddff00', mob: '#3a3a3a', elite: '#00ffe9', elite2: '#039689', elite3: '#ff9f1a',
             heros: '#ffd23f', herosEvent: '#ff4dd2', titan: '#b6ff1a', collosus: '#809912', item: '#f56bff', gw: '#2b3cff',
             resp: '#c6ba35', respEvent: '#00bfff', marker: '#ff00d4', party: '#b45cff',
         };
+        // aktualne kolory = domyślne + własne z ustawień (trybik na mapie)
+        const COLORS = Object.assign({}, DEFAULT_COLORS);
+        const COLOR_GROUPS = [
+            ['Gracze', [['hero', 'Ty'], ['party', 'Drużyna'], ['clan', 'Klan'], ['friend', 'Znajomi'], ['ally', 'Sojusznicy'], ['enemy', 'Wrogowie'], ['other', 'Obcy gracze']]],
+            ['Potwory', [['mob', 'Moby'], ['elite', 'Elity'], ['elite2', 'Elity II'], ['elite3', 'Elity III'], ['heros', 'Herosi'], ['herosEvent', 'Herosi eventowi'], ['titan', 'Tytani'], ['collosus', 'Kolosy']]],
+            ['Pozostałe', [['npc', 'NPC'], ['gw', 'Przejścia'], ['item', 'Przedmioty'], ['grave', 'Groby'], ['resp', 'Respy herosów'], ['respEvent', 'Respy eventowe'], ['marker', 'Znacznik']]],
+        ];
+        const HEX_RE = /^#[0-9a-f]{6}$/i;
+        function applyColors() {
+            const own = state.mmColors && typeof state.mmColors === 'object' ? state.mmColors : {};
+            for (const k in DEFAULT_COLORS) COLORS[k] = HEX_RE.test(String(own[k] || '')) ? own[k] : DEFAULT_COLORS[k];
+            if (el) for (const k in COLORS) el.style.setProperty(`--mm-c-${k}`, COLORS[k]);
+        }
         const LAYERS = {
             gw: 70, item: 80, grave: 85, resp: 90, respEvent: 90, npc: 110, mob: 110, elite: 120, elite2: 130, elite3: 130,
             other: 140, friend: 140, clan: 140, ally: 140, party: 142, enemy: 145, titan: 150, collosus: 150, heros: 160, herosEvent: 160, marker: 200,
@@ -9419,10 +9575,20 @@ function observeChatLinks() {
                     const key = `${xy[0]},${xy[1]}`;
                     if (seen.has(key)) continue;
                     seen.add(key);
-                    out.push({ x: xy[0], y: xy[1], nick: `Resp ${event ? 'eventowy ' : ''}${name}${lvl ? ` (${lvl} lvl)` : ''}`, kind: event ? 'respEvent' : 'resp' });
+                    const titan = isTitanSpawn(t, name);
+                    out.push({ x: xy[0], y: xy[1], nick: `Resp ${event ? 'eventowy ' : ''}${titan ? 'tytana ' : ''}${name}${lvl ? ` (${lvl} lvl)` : ''}`, kind: event ? 'respEvent' : 'resp', titan });
                 }
             }
             return out;
+        }
+
+        // resp tytana – po rodzaju z gry, typie wojownika albo nazwie tytana
+        const TITAN_NAME_RE = /tytan|titan|orlica|kr[oó]lik|baulus|arcymag|zoons|[łl]owczyni|przyzywacz|magua|tezcatlipoca|barbatos|tanroth/i;
+        function isTitanSpawn(t, name) {
+            if (/tit|tyt/i.test(String(t.kind ?? t.type ?? ''))) return true;
+            const wt = Number(t.wt ?? t.warrior_type);
+            if (Number.isFinite(wt) && wt > 99) return true;
+            return TITAN_NAME_RE.test(String(name || ''));
         }
 
         // przejścia szerokie na 2+ kratki gra podaje osobno – łączymy w jedno
@@ -9616,6 +9782,8 @@ function observeChatLinks() {
         // Gdy sami podejdziemy w zasięg wykrywania, resp wraca do zwykłego wyglądu.
         const SUSPECT_RANGE = 3;
         function suspectSpawn(sp) {
+            // respy tytanów nie dostają ostrzeżenia „może tu być heros”
+            if (sp.titan) return sp;
             const h = heroPos();
             const myRange = Math.max(1, Number(state.mmSpawnRange) || 10);
             if (h && Math.hypot(sp.x - (h.x ?? h.rx), sp.y - (h.y ?? h.ry)) <= myRange) return sp;
@@ -9623,6 +9791,8 @@ function observeChatLinks() {
                 const n = npcs[id];
                 const k = n.x !== undefined ? npcKind(n) : null;
                 if ((k === 'heros' || k === 'herosEvent') && Math.hypot(n.x - sp.x, n.y - sp.y) <= 8) return sp;
+                // tytan przy respie = to resp tytana – bez ostrzeżenia
+                if (k === 'titan' && Math.hypot(n.x - sp.x, n.y - sp.y) <= 8) return sp;
             }
             const near = [];
             for (const id in others) {
@@ -9704,6 +9874,33 @@ function observeChatLinks() {
             return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
         }
 
+        // ---------- trybik na mapie: kolory elementów ----------
+        let cfgOpen = false;
+        function renderCfg() {
+            const box = el?.querySelector('[data-mm-cfg]');
+            if (!box) return;
+            const own = state.mmColors || {};
+            box.innerHTML = `
+              <div class="pa-mm-cfg-title">Kolory na mapie<button type="button" class="pa-mm-gear" data-mm-cfg-act="close" title="Zamknij">✕</button></div>
+              ${COLOR_GROUPS.map(([title, items]) => `
+                <div class="pa-mm-cfg-sub">${title}</div>
+                <div class="pa-mm-cfg-grid">
+                  ${items.map(([k, label]) => `<label class="pa-mm-cfg-row${own[k] ? ' pa-mm-cfg-changed' : ''}" title="${label} – kliknij, aby zmienić kolor"><input type="color" data-mm-color="${k}" value="${COLORS[k]}"><span>${label}</span></label>`).join('')}
+                </div>`).join('')}
+              <div class="pa-mm-cfg-foot">
+                <button type="button" data-mm-cfg-act="reset">Domyślne</button>
+                <button type="button" data-mm-cfg-act="more">Więcej ustawień</button>
+              </div>`;
+        }
+        function setCfgOpen(open) {
+            cfgOpen = Boolean(open) && Boolean(el);
+            const box = el?.querySelector('[data-mm-cfg]');
+            if (!box) return;
+            if (cfgOpen) renderCfg();
+            box.classList.toggle('pa-open', cfgOpen);
+            el.querySelector('[data-mm-gear]')?.classList.toggle('pa-mm-gear-on', cfgOpen);
+        }
+
         function createEl() {
             if (el) return;
             el = document.createElement('div');
@@ -9731,14 +9928,16 @@ function observeChatLinks() {
                   <span data-mm-zoom-val></span>
                   <button type="button" class="pa-mm-gear" data-mm-zoom="1" title="Powiększ mapę">+</button>
                 </span>
-                <button type="button" class="pa-mm-gear" data-mm-gear title="Ustawienia">⚙</button>
+                <button type="button" class="pa-mm-gear" data-mm-gear title="Kolory i ustawienia mapy">⚙</button>
                 <button type="button" class="pa-mm-gear pa-mm-close" data-mm-close title="Zamknij (Esc)">✕</button>
                 </span>
               </div>
+              <div class="pa-mm-cfg" data-mm-cfg></div>
               </div>
               <div class="pa-mm-side" data-mm-side></div>`;
             document.body.appendChild(el);
             el.classList.add('pa-mm-fixed');
+            applyColors();
 
             tip = document.createElement('div');
             tip.className = 'pa-tip';
@@ -9760,7 +9959,46 @@ function observeChatLinks() {
                 search = m ? { text: '', coords: [Number(m[1]), Number(m[2])] } : { text: v.toLowerCase(), coords: null };
                 renderObjects();
             });
-            el.querySelector('[data-mm-gear]').addEventListener('click', () => setMenuOpen(true, 'minimap'));
+            el.querySelector('[data-mm-gear]').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.blur();
+                setCfgOpen(!cfgOpen);
+            });
+            const cfgEl = el.querySelector('[data-mm-cfg]');
+            ['mousedown', 'click', 'dblclick', 'contextmenu', 'wheel'].forEach((type) => cfgEl.addEventListener(type, (e) => e.stopPropagation()));
+            cfgEl.addEventListener('input', (e) => {
+                const k = e.target.getAttribute?.('data-mm-color');
+                if (!k || !HEX_RE.test(e.target.value)) return;
+                if (!state.mmColors || typeof state.mmColors !== 'object') state.mmColors = {};
+                if (e.target.value.toLowerCase() === DEFAULT_COLORS[k].toLowerCase()) delete state.mmColors[k];
+                else state.mmColors[k] = e.target.value.toLowerCase();
+                applyColors();
+                e.target.closest('.pa-mm-cfg-row')?.classList.toggle('pa-mm-cfg-changed', Boolean(state.mmColors[k]));
+                sideSig = null;
+                queueRender();
+            });
+            cfgEl.addEventListener('change', (e) => {
+                if (e.target.matches?.('[data-mm-color]')) saveSettings();
+            });
+            cfgEl.addEventListener('click', (e) => {
+                const act = e.target.closest('[data-mm-cfg-act]')?.getAttribute('data-mm-cfg-act');
+                if (!act) return;
+                if (act === 'close') setCfgOpen(false);
+                if (act === 'reset') {
+                    state.mmColors = {};
+                    saveSettings();
+                    applyColors();
+                    renderCfg();
+                    sideSig = null;
+                    queueRender();
+                    showToast('Przywrócono domyślne kolory mapy');
+                }
+                if (act === 'more') {
+                    setCfgOpen(false);
+                    setMenuOpen(true, 'minimap');
+                }
+            });
             el.querySelector('[data-mm-close]').addEventListener('click', () => close(true));
             makeWinDraggable(el, el.querySelector('[data-mm-drag]'), (pos) => {
                 state.mmPos = pos;
@@ -9949,11 +10187,11 @@ function observeChatLinks() {
             }
             hits.sort((a, b) => a.d - b.d || (LAYERS[b.o.kind] || 0) - (LAYERS[a.o.kind] || 0));
             tip.innerHTML = hits.slice(0, 6).map(({ o }) => {
-                const type = o.player ? (o.clan ? escapeHtmlPa(o.clan) : 'bez klanu') : (TYPE_NAMES[o.kind] || '');
+                const type = o.player ? (o.clan ? escapeHtmlPa(o.clan) : 'bez klanu') : (o.titan ? 'resp tytana' : (TYPE_NAMES[o.kind] || ''));
                 const lvl = o.lvl ? ` · ${o.lvl}${o.prof || ''} lvl` : '';
                 const grp = o.grp ? ' · grupa' : '';
                 const sus = o.suspect ? `<br><span style="color:#ffd23f;font-weight:700">⚠ Może tu być heros!</span><br><span style="color:var(--pa-muted)">Przy respie stoi: ${o.suspect.map(escapeHtmlPa).join(', ')}</span>` : '';
-                return `<div><b style="color:${o.suspect ? '#ffd23f' : (COLORS[o.kind] || '#fff')}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${Math.round(o.tx ?? o.x)},${Math.round(o.ty ?? o.y)})</span>${sus}</div>`;
+                return `<div><b style="color:${o.suspect ? (o.kind === 'respEvent' ? COLORS.herosEvent : COLORS.heros) : (COLORS[o.kind] || '#fff')}">●</b> <b>${escapeHtmlPa(o.nick)}</b><br><span style="color:var(--pa-muted)">${type}${lvl}${grp} · (${Math.round(o.tx ?? o.x)},${Math.round(o.ty ?? o.y)})</span>${sus}</div>`;
             }).join('<div style="height:4px"></div>');
             tip.style.display = 'block';
             const x = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + 14);
@@ -10875,6 +11113,7 @@ function observeChatLinks() {
             if (el) el.classList.remove('pa-visible');
             if (tip) tip.style.display = 'none';
             hideSideTip();
+            setCfgOpen(false);
             if (alsoGame) closeGameWindow();
         }
 
@@ -10889,6 +11128,10 @@ function observeChatLinks() {
             if (!enabled) return;
             const t = e.target;
             if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return;
+            if (e.key === 'Escape' && isOpen && cfgOpen) {
+                setCfgOpen(false);
+                return;
+            }
             if (e.key === 'Escape' && isOpen) {
                 close(true);
                 return;
@@ -10924,6 +11167,7 @@ function observeChatLinks() {
                 tip?.remove();
                 el = null;
                 tip = null;
+                cfgOpen = false;
             }
         }
 
@@ -10932,6 +11176,7 @@ function observeChatLinks() {
         }
 
         function refresh() {
+            applyColors();
             if (isOpen) buildMap();
         }
 
